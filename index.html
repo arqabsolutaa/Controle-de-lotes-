@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#6f6f6f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Controle de Lotes</title>
+<style>
+:root{--g1:#6f6f6f;--g2:#d6d6d3;--g3:#ececea;--off:#f6f5f1;--tx:#2b2b2b;--ok:#4f7a4f;--al:#b07a1a;--er:#a33b3b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--off);color:var(--tx)}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{width:100%;min-height:48px;padding:10px 12px;border:1px solid #b9b9b5;border-radius:10px;background:#fff}
+textarea{min-height:72px}
+label{display:block;font-size:13px;color:#555;margin:12px 0 4px}
+.btn{min-height:52px;padding:0 22px;border:0;border-radius:12px;background:var(--g1);color:#fff;font-weight:600;cursor:pointer}
+.btn.sec{background:var(--g2);color:var(--tx)}
+.btn.er{background:var(--er)}
+.btn[disabled]{opacity:.45}
+.btn.sm{min-height:40px;padding:0 14px;font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 140px}
+/* login */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#8a8a87 url(fundo.jpg) center/cover;padding:16px}
+.lbox{width:100%;max-width:360px;background:rgba(246,245,241,.94);border-radius:18px;padding:22px;text-align:center}
+.lbox img{max-height:54px;max-width:70%;margin-bottom:10px}
+.dots{font-size:30px;letter-spacing:8px;height:42px;margin:8px 0}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pad button{min-height:60px;font-size:22px;border:0;border-radius:12px;background:#fff;box-shadow:0 1px 0 #bbb}
+/* topo */
+header{position:sticky;top:0;z-index:5;background:var(--g1);color:#fff}
+.top{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.top b{flex:1}
+.sync{font-size:13px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.2);cursor:pointer}
+.sync.pend{background:var(--al)}.sync.off{background:#444}
+nav{display:flex;overflow-x:auto;background:#5a5a58}
+nav button{flex:0 0 auto;padding:13px 18px;border:0;background:none;color:#ddd;font-weight:600;border-bottom:3px solid transparent}
+nav button.on{color:#fff;border-bottom-color:#fff}
+main{padding:14px;max-width:980px;margin:0 auto}
+.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.kpi small{color:#666;display:block}.kpi strong{font-size:26px}
+.kpi.al strong{color:var(--al)}.kpi.er strong{color:var(--er)}
+.lote{cursor:pointer}
+.lote h3{margin:0 0 2px;font-size:17px}.muted{color:#666;font-size:14px}
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:var(--g3);margin:4px 4px 0 0}
+.tag.al{background:#f1e2c2}.tag.er{background:#efcaca}.tag.ok{background:#d3e4d3}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-bottom:1px solid var(--g3);text-align:left}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumbs img,.thumbs .ph{width:92px;height:92px;object-fit:cover;border-radius:10px;background:var(--g2)}
+.thumbs .ph{display:flex;align-items:center;justify-content:center;font-size:12px;color:#666}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.mod{background:var(--off);width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:0 16px 20px}
+.mh{position:sticky;top:0;background:var(--off);display:flex;align-items:center;padding:14px 0;gap:10px}
+.mh b{flex:1;font-size:18px}
+.x{width:44px;height:44px;border:0;border-radius:50%;background:var(--g2);font-size:22px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:12px 18px;border-radius:12px;z-index:50;display:none;max-width:90%}
+.warn{color:var(--al);font-size:13px;margin-top:4px}
+@media(min-width:700px){.ov{align-items:center}.mod{border-radius:18px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+'use strict';
+/* ===== CONFIG ===== */
+const API_URL = 'COLE_AQUI_A_URL_DO_APP_DA_WEB';
+const VERSAO_APP = '1.0.0';
+
+/* ===== UTIL ===== */
+const $ = (t, a = {}, ...k) => {
+  const e = document.createElement(t);
+  for (const [n, v] of Object.entries(a)) {
+    if (n === 'class') e.className = v;
+    else if (n.startsWith('on')) e.addEventListener(n.slice(2), v);
+    else if (n === 'value') continue;
+    else if (v === true) e.setAttribute(n, '');
+    else if (v !== false && v != null) e.setAttribute(n, v);
+  }
+  k.flat(9).forEach(c => { if (c == null || c === false) return; e.append(c.nodeType ? c : document.createTextNode(c)); });
+  if (a.value !== undefined) e.value = a.value;
+  return e;
+};
+const uid = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 12) : Math.random().toString(36).slice(2, 14));
+const hojeISO = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const fData = s => { if (!s) return '-'; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : s; };
+const fNome = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+const ddmmaa = () => { const d = hojeISO(); return `${d.slice(8)}-${d.slice(5, 7)}-${d.slice(2, 4)}`; };
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2800); }
+const num = n => (Math.round(n * 100) / 100).toLocaleString('pt-BR');
+
+/* ===== IndexedDB (fila offline + copia local) ===== */
+let _db;
+function db() {
+  if (_db) return _db;
+  _db = new Promise((res, rej) => {
+    const r = indexedDB.open('controle-lotes', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('fila', { keyPath: 'seq', autoIncrement: true }); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  return _db;
+}
+const tx = async (store, mode, fn) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction(store, mode); const r = fn(t.objectStore(store)); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); }); };
+const kvGet = k => tx('kv', 'readonly', s => s.get(k));
+const kvSet = (k, v) => tx('kv', 'readwrite', s => s.put(v, k));
+const filaAdd = i => tx('fila', 'readwrite', s => s.add(i));
+const filaAll = () => tx('fila', 'readonly', s => s.getAll()).then(r => r || []);
+const filaDel = async seqs => { const d = await db(); return new Promise(res => { const t = d.transaction('fila', 'readwrite'); seqs.forEach(q => t.objectStore('fila').delete(q)); t.oncomplete = res; }); };
+
+/* ===== ESTADO ===== */
+const S = { token: null, u: null, data: null, tab: 'painel', pend: 0, erros: [], online: navigator.onLine, fotos: {}, filtro: { mat: '', st: 'ativo', q: '' } };
+const TABS = {
+  administrador: [['painel', 'Painel'], ['receber', 'Receber'], ['liberar', 'Liberar'], ['lotes', 'Lotes'], ['relatorio', 'Relatório'], ['cadastros', 'Cadastros'], ['historico', 'Histórico']],
+  almoxarife: [['painel', 'Painel'], ['receber', 'Receber'], ['liberar', 'Liberar'], ['lotes', 'Lotes'], ['relatorio', 'Relatório']],
+  compras: [['painel', 'Painel'], ['lotes', 'Lotes'], ['relatorio', 'Relatório']],
+  consulta: [['painel', 'Painel'], ['lotes', 'Lotes'], ['relatorio', 'Relatório']]
+};
+
+/* ===== API ===== */
+async function api(acao, dados) {
+  const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ acao, dados: dados || {}, token: S.token }) });
+  return r.json();
+}
+
+/* ===== MODELO LOCAL ===== */
+function aplicar(data, acao, d) {
+  const up = (nome, obj) => { const l = data[nome]; const i = l.findIndex(x => x.id === obj.id); if (i < 0) l.push(obj); else l[i] = Object.assign(l[i], obj); };
+  const por = S.u ? S.u.nome : '';
+  switch (acao) {
+    case 'salvarLote': up('Lotes', Object.assign({ status: 'ativo', por }, d, { qtd: Number(d.qtd) })); break;
+    case 'salvarLiberacao': up('Liberacoes', Object.assign({ por }, d, { qtd: Number(d.qtd) })); break;
+    case 'salvarFoto': if (!data.Fotos.some(f => f.id === d.id)) data.Fotos.push({ id: d.id, refTipo: d.refTipo, refId: d.refId, tipo: d.tipo, arquivo: 'local', por }); break;
+    case 'salvarOcorrencia': up('Ocorrencias', { id: d.id, loteId: d.loteId, descricao: d.descricao, data: d.data || hojeISO(), status: 'aberta', por, resolucao: '' }); break;
+    case 'resolverOcorrencia': { const o = data.Ocorrencias.find(x => x.id === d.id); if (o) { o.status = 'resolvida'; o.resolucao = d.resolucao || ''; } break; }
+    case 'salvarCadastro': up(d.tabela === 'materiais' ? 'Materiais' : 'Destinos', Object.assign({ ativo: 'sim' }, d)); break;
+    case 'salvarUsuario': up('Usuarios', { id: d.id, nome: d.nome, perfil: d.perfil, ativo: d.ativo || 'sim' }); break;
+  }
+}
+async function enfileirar(acao, dados) {
+  await filaAdd({ acao, dados });
+  aplicar(S.data, acao, dados);
+  await kvSet('data', S.data);
+  await atualizarPend();
+}
+async function atualizarPend() { S.pend = (await filaAll()).length; barra(); }
+
+let syncing = false;
+async function sincronizar() {
+  if (syncing || !S.online || !S.token || API_URL.startsWith('COLE')) return;
+  syncing = true; barra();
+  try {
+    for (;;) {
+      const itens = await filaAll(); if (!itens.length) break;
+      const grupo = itens.slice(0, 6);
+      const r = await api('lote', { passos: grupo.map(i => ({ acao: i.acao, dados: i.dados })) });
+      if (!r.ok) { if (r.sessao) { sairLogin(true); } break; }
+      const del = [];
+      r.resultados.forEach((x, k) => {
+        if (x.ok) del.push(grupo[k].seq);
+        else if (!x.repetir) { S.erros.push({ acao: grupo[k].acao, erro: x.erro }); del.push(grupo[k].seq); }
+      });
+      await filaDel(del);
+      if (del.length < grupo.length) break;
+    }
+    await recarregar(true);
+  } catch (e) { /* sem rede: tenta depois */ }
+  finally { syncing = false; await atualizarPend(); }
+}
+async function recarregar(silencioso) {
+  const r = await api('carregar');
+  if (!r.ok) { if (r.sessao) sairLogin(true); return; }
+  const data = {}; ['Materiais', 'Lotes', 'Liberacoes', 'Ocorrencias', 'Fotos', 'Destinos', 'Usuarios'].forEach(t => data[t] = r[t] || []);
+  const fila = await filaAll();
+  fila.forEach(i => aplicar(data, i.acao, i.dados));
+  S.data = data; await kvSet('data', data);
+  if (!silencioso || !document.querySelector('.ov')) render();
+}
+
+/* ===== FOTOS ===== */
+function comprimir(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const m = 1400, esc = Math.min(1, m / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * esc); c.height = Math.round(img.height * esc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => rej(new Error('imagem')); img.src = url;
+  });
+}
+function fotoCampo(rotulo, lista, onChange) {
+  const box = $('div'), th = $('div', { class: 'thumbs' });
+  const pinta = () => { th.replaceChildren(...lista.map((u, i) => $('div', { style: 'position:relative' }, $('img', { src: u }), $('button', { class: 'x', style: 'position:absolute;top:-6px;right:-6px;width:30px;height:30px;font-size:16px', onclick: () => { lista.splice(i, 1); pinta(); onChange && onChange(); } }, '×')))); };
+  const mk = cap => { const i = $('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async () => { for (const f of i.files) { try { lista.push(await comprimir(f)); } catch (e) { toast('Foto inválida'); } } i.value = ''; pinta(); onChange && onChange(); } }); if (cap) i.setAttribute('capture', 'environment'); return i; };
+  const cam = mk(true), gal = mk(false);
+  box.append($('label', {}, rotulo), $('div', { class: 'row' }, $('button', { class: 'btn', type: 'button', onclick: () => cam.click() }, 'Câmera'), $('button', { class: 'btn sec', type: 'button', onclick: () => gal.click() }, 'Galeria')), cam, gal, th);
+  return box;
+}
+async function urlFoto(id) {
+  if (S.fotos[id]) return S.fotos[id];
+  const f = (await filaAll()).find(i => i.acao === 'salvarFoto' && i.dados.id === id);
+  if (f) return S.fotos[id] = f.dados.base64;
+  const r = await api('obterFoto', { id });
+  if (!r.ok) throw new Error(r.erro);
+  return S.fotos[id] = r.dataUrl;
+}
+function thumbs(refTipo, refId) {
+  const lista = S.data.Fotos.filter(f => f.refTipo === refTipo && f.refId === refId);
+  const box = $('div', { class: 'thumbs' });
+  if (!lista.length) box.append($('div', { class: 'ph' }, 'sem foto'));
+  lista.forEach(f => {
+    const ph = $('div', { class: 'ph' }, f.tipo); box.append(ph);
+    urlFoto(f.id).then(u => { const im = $('img', { src: u, onclick: () => ampliar(u) }); ph.replaceWith(im); }).catch(() => { ph.textContent = 'offline'; });
+  });
+  return box;
+}
+function ampliar(u) { modal('Foto', $('img', { src: u, style: 'width:100%;border-radius:12px' })); }
+
+/* ===== MODAL (fecha so pelo X) ===== */
+function modal(titulo, corpo) {
+  const ov = $('div', { class: 'ov' });
+  const fechar = () => { ov.remove(); };
+  ov.append($('div', { class: 'mod' }, $('div', { class: 'mh' }, $('b', {}, titulo), $('button', { class: 'x', onclick: fechar }, '×')), corpo));
+  document.body.append(ov); return fechar;
+}
+
+/* ===== CALCULOS ===== */
+const mat = id => S.data.Materiais.find(m => m.id === id) || { nome: '?', unidade: '' };
+const libDe = id => S.data.Liberacoes.filter(l => l.loteId === id);
+const saldo = l => l.qtd - libDe(l.id).reduce((s, x) => s + Number(x.qtd), 0);
+const fotosDe = (t, id) => S.data.Fotos.filter(f => f.refTipo === t && f.refId === id);
+const rotLote = l => `${mat(l.materialId).nome} · lote ${l.numeroLote}`;
+function alertas(l) {
+  const a = [], s = saldo(l);
+  if (!fotosDe('lote', l.id).some(f => f.tipo === 'etiqueta')) a.push(['er', 'sem foto da etiqueta']);
+  if (libDe(l.id).some(x => !fotosDe('liberacao', x.id).length)) a.push(['al', 'liberação sem foto']);
+  if (s < 0) a.push(['er', 'saldo negativo']);
+  if (S.data.Ocorrencias.some(o => o.loteId === l.id && o.status === 'aberta')) a.push(['er', 'ocorrência aberta']);
+  if (l.validade) { const dias = (new Date(l.validade) - new Date(hojeISO())) / 864e5; if (dias < 0) a.push(['er', 'vencido']); else if (dias <= 30) a.push(['al', 'vence em ' + Math.round(dias) + 'd']); }
+  return a;
+}
+function misturas() {
+  const m = {};
+  S.data.Liberacoes.forEach(x => { const l = S.data.Lotes.find(y => y.id === x.loteId); if (!l) return; const k = l.materialId + '|' + x.destino; (m[k] = m[k] || new Set()).add(l.numeroLote); });
+  return Object.entries(m).filter(([, s]) => s.size > 1).map(([k, s]) => ({ material: mat(k.split('|')[0]).nome, destino: k.split('|').slice(1).join('|'), lotes: [...s] }));
+}
+
+/* ===== LOGIN ===== */
+async function telaLogin() {
+  const app = document.getElementById('app'); app.replaceChildren();
+  let pin = '', usuarios = (await kvGet('usuarios')) || [];
+  const sel = $('select'), dots = $('div', { class: 'dots' }, ' ');
+  const pinta = () => { dots.textContent = pin ? '●'.repeat(pin.length) : ' '; };
+  const carregaNomes = () => { sel.replaceChildren(...usuarios.map(u => $('option', { value: u.id }, u.nome))); };
+  carregaNomes();
+  if (S.online && !API_URL.startsWith('COLE')) api('usuariosLogin').then(r => { if (r.ok) { usuarios = r.usuarios; kvSet('usuarios', usuarios); carregaNomes(); } }).catch(() => {});
+  const entrar = async () => {
+    if (!pin) return;
+    try {
+      const r = await api('login', { usuarioId: sel.value, pin });
+      if (!r.ok) { toast(r.erro); pin = ''; pinta(); return; }
+      S.token = r.token; S.u = r.usuario; await kvSet('sessao', { token: r.token, u: r.usuario });
+      S.data = null; await iniciar();
+    } catch (e) { toast('Sem conexão'); }
+  };
+  const tecla = n => $('button', { type: 'button', onclick: () => { if (pin.length < 8) { pin += n; pinta(); } } }, n);
+  app.append($('div', { id: 'login' }, $('div', { class: 'lbox' },
+    $('img', { src: 'logo.png', onerror: e => e.target.remove(), alt: '' }),
+    $('h2', { style: 'margin:4px 0 12px' }, 'Controle de Lotes'), sel, dots,
+    $('div', { class: 'pad' }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(tecla), $('button', { type: 'button', onclick: () => { pin = pin.slice(0, -1); pinta(); } }, '⌫'), tecla(0), $('button', { type: 'button', style: 'background:var(--g1);color:#fff', onclick: entrar }, '→'))
+  )));
+}
+async function sairLogin(manterFila) { S.token = null; S.u = null; await kvSet('sessao', null); telaLogin(); }
+
+/* ===== TELAS ===== */
+function render() {
+  if (!S.u || !S.data) return;
+  const app = document.getElementById('app'); app.replaceChildren();
+  const tabs = TABS[S.u.perfil];
+  if (!tabs.some(t => t[0] === S.tab)) S.tab = 'painel';
+  app.append($('header', {},
+    $('div', { class: 'top' }, $('b', {}, 'Lotes'), $('span', { class: 'sync', id: 'sync', onclick: () => { sincronizar(); if (S.erros.length) mostrarErros(); } }), $('span', { style: 'font-size:13px' }, S.u.nome), $('button', { class: 'btn sec sm', onclick: () => sairLogin() }, 'Sair')),
+    $('nav', {}, tabs.map(([k, n]) => $('button', { class: S.tab === k ? 'on' : '', onclick: () => { S.tab = k; render(); } }, n)))));
+  const main = $('main'); app.append(main);
+  ({ painel, receber, liberar, lotes, relatorio, cadastros, historico })[S.tab](main);
+  barra();
+}
+function barra() {
+  const e = document.getElementById('sync'); if (!e) return;
+  e.className = 'sync' + (!S.online ? ' off' : S.pend ? ' pend' : '');
+  e.textContent = !S.online ? (S.pend ? `offline · ${S.pend}` : 'offline') : S.pend ? `${S.pend} aguardando` : S.erros.length ? `${S.erros.length} erro(s)` : '● ok';
+}
+function mostrarErros() { modal('Erros de envio', $('div', {}, S.erros.map(e => $('p', {}, `${e.acao}: ${e.erro}`)), $('button', { class: 'btn', onclick: () => { S.erros = []; barra(); } }, 'Limpar'))); }
+
+function painel(m) {
+  const ativos = S.data.Lotes.filter(l => l.status !== 'encerrado');
+  const semFoto = S.data.Lotes.filter(l => !fotosDe('lote', l.id).some(f => f.tipo === 'etiqueta'));
+  const libSem = S.data.Liberacoes.filter(x => !fotosDe('liberacao', x.id).length);
+  const oc = S.data.Ocorrencias.filter(o => o.status === 'aberta');
+  const mis = misturas();
+  const kpi = (t, n, c) => $('div', { class: 'kpi ' + (n && c ? c : '') }, $('small', {}, t), $('strong', {}, n));
+  m.append($('div', { class: 'grid' }, kpi('Lotes ativos', ativos.length), kpi('Sem foto da etiqueta', semFoto.length, 'er'), kpi('Liberações sem foto', libSem.length, 'al'), kpi('Ocorrências abertas', oc.length, 'er'), kpi('Lote misto no mesmo local', mis.length, 'al')));
+  const porMat = {};
+  ativos.forEach(l => { const k = l.materialId; porMat[k] = porMat[k] || { s: 0, n: 0 }; porMat[k].s += saldo(l); porMat[k].n++; });
+  m.append($('div', { class: 'card' }, $('b', {}, 'Saldo por material'), $('table', {}, Object.entries(porMat).map(([k, v]) => $('tr', {}, $('td', {}, mat(k).nome), $('td', {}, v.n + ' lote(s)'), $('td', {}, num(v.s) + ' ' + mat(k).unidade))))));
+  if (mis.length) m.append($('div', { class: 'card' }, $('b', {}, 'Mais de um lote no mesmo local'), mis.map(x => $('div', { class: 'muted' }, `${x.material} · ${x.destino} · lotes ${x.lotes.join(', ')}`))));
+  const pend = [...semFoto.map(l => [l, 'sem foto da etiqueta']), ...oc.map(o => [S.data.Lotes.find(l => l.id === o.loteId), 'ocorrência: ' + o.descricao])].filter(p => p[0]);
+  if (pend.length) m.append($('div', { class: 'card' }, $('b', {}, 'Atenção'), pend.map(([l, t]) => $('div', { class: 'lote', style: 'padding:8px 0', onclick: () => detalhe(l.id) }, $('div', {}, rotLote(l)), $('div', { class: 'muted' }, t)))));
+}
+
+function receber(m) {
+  const f = { mat: '', numero: '', forn: '', nf: '', fab: '', val: '', data: hojeISO(), qtd: '', local: '', obs: '' };
+  const etiq = [], nota = [];
+  const ativos = S.data.Materiais.filter(x => x.ativo !== 'nao');
+  const inp = (rot, k, tipo = 'text', extra = {}) => $('div', {}, $('label', {}, rot), $('input', Object.assign({ type: tipo, value: f[k], oninput: e => f[k] = e.target.value }, extra)));
+  const selM = $('select', { onchange: e => f.mat = e.target.value }, $('option', { value: '' }, 'Material'), ativos.map(x => $('option', { value: x.id }, x.nome)));
+  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:16px', onclick: async () => {
+    if (!f.mat || !f.numero.trim() || !f.qtd || Number(f.qtd) <= 0) return toast('Material, lote e quantidade');
+    if (!etiq.length) return toast('Foto da etiqueta é obrigatória');
+    bt.disabled = true;
+    const id = uid();
+    await enfileirar('salvarLote', { id, materialId: f.mat, numeroLote: f.numero.trim(), fornecedor: f.forn, notaFiscal: f.nf, dataFabricacao: f.fab, validade: f.val, dataEntrada: f.data, qtd: Number(f.qtd), local: f.local, obs: f.obs });
+    for (const [lista, tipo] of [[etiq, 'etiqueta'], [nota, 'nota']]) for (const b of lista) await enfileirar('salvarFoto', { id: uid(), refTipo: 'lote', refId: id, tipo, base64: b });
+    toast('Recebimento salvo'); S.tab = 'lotes'; render(); sincronizar();
+  } }, 'Salvar recebimento');
+  m.append($('div', { class: 'card' }, $('label', {}, 'Material'), selM,
+    $('div', { class: 'row' }, inp('Nº do lote', 'numero'), inp('Quantidade', 'qtd', 'number', { inputmode: 'decimal', step: 'any' })),
+    $('div', { class: 'row' }, inp('Fornecedor', 'forn'), inp('Nota fiscal', 'nf')),
+    $('div', { class: 'row' }, inp('Fabricação', 'fab', 'date'), inp('Validade', 'val', 'date'), inp('Entrada', 'data', 'date')),
+    inp('Local de armazenamento', 'local'),
+    fotoCampo('Foto da etiqueta do lote *', etiq), fotoCampo('Foto da nota (opcional)', nota),
+    $('label', {}, 'Observação'), $('textarea', { oninput: e => f.obs = e.target.value }), bt));
+}
+
+function liberar(m) {
+  const f = { lote: '', qtd: '', destino: '', detalhe: '', data: hojeISO(), abertura: '', obs: '' };
+  const fotos = [];
+  const lotesOk = S.data.Lotes.filter(l => l.status !== 'encerrado').sort((a, b) => (b.dataEntrada || '').localeCompare(a.dataEntrada || ''));
+  const aviso = $('div', { class: 'warn' });
+  const checa = () => {
+    aviso.textContent = '';
+    const l = S.data.Lotes.find(x => x.id === f.lote); if (!l) return;
+    const dest = f.destino + (f.detalhe ? ' - ' + f.detalhe : '');
+    const outros = new Set(S.data.Liberacoes.filter(x => x.destino === dest && S.data.Lotes.find(y => y.id === x.loteId && y.materialId === l.materialId && y.id !== l.id)).map(x => S.data.Lotes.find(y => y.id === x.loteId).numeroLote));
+    if (f.destino && outros.size) aviso.textContent = 'Outro lote deste material já foi liberado para este local: ' + [...outros].join(', ');
+  };
+  const selL = $('select', { onchange: e => { f.lote = e.target.value; checa(); } }, $('option', { value: '' }, 'Lote'), lotesOk.map(l => $('option', { value: l.id }, `${rotLote(l)} (saldo ${num(saldo(l))} ${mat(l.materialId).unidade})`)));
+  const selD = $('select', { onchange: e => { f.destino = e.target.value; checa(); } }, $('option', { value: '' }, 'Destino'), S.data.Destinos.filter(d => d.ativo !== 'nao').map(d => $('option', { value: d.nome }, d.nome)));
+  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:16px', onclick: async () => {
+    if (!f.lote || !f.qtd || Number(f.qtd) <= 0 || !f.destino) return toast('Lote, quantidade e destino');
+    if (!fotos.length) return toast('Foto do lote é obrigatória');
+    const l = S.data.Lotes.find(x => x.id === f.lote);
+    if (Number(f.qtd) > saldo(l) && !confirm('Quantidade maior que o saldo. Salvar mesmo assim?')) return;
+    bt.disabled = true;
+    const id = uid();
+    await enfileirar('salvarLiberacao', { id, loteId: f.lote, qtd: Number(f.qtd), destino: f.destino + (f.detalhe ? ' - ' + f.detalhe : ''), dataLiberacao: f.data, dataAbertura: f.abertura, obs: f.obs });
+    for (const b of fotos) await enfileirar('salvarFoto', { id: uid(), refTipo: 'liberacao', refId: id, tipo: 'lote', base64: b });
+    toast('Liberação salva'); S.tab = 'painel'; render(); sincronizar();
+  } }, 'Salvar liberação');
+  const inp = (rot, k, tipo = 'text', extra = {}) => $('div', {}, $('label', {}, rot), $('input', Object.assign({ type: tipo, value: f[k], oninput: e => { f[k] = e.target.value; if (k === 'detalhe') checa(); } }, extra)));
+  m.append($('div', { class: 'card' }, $('label', {}, 'Lote'), selL, $('div', { class: 'row' }, inp('Quantidade', 'qtd', 'number', { inputmode: 'decimal', step: 'any' }), inp('Data', 'data', 'date')),
+    $('label', {}, 'Destino'), selD, inp('Detalhe do local (face, pavimento, apto)', 'detalhe'), aviso, inp('Abertura do saco (opcional)', 'abertura', 'date'),
+    fotoCampo('Foto do lote liberado *', fotos), $('label', {}, 'Observação'), $('textarea', { oninput: e => f.obs = e.target.value }), bt));
+}
+
+function lotes(m) {
+  const F = S.filtro;
+  const selM = $('select', { onchange: e => { F.mat = e.target.value; render(); } }, $('option', { value: '' }, 'Material'), S.data.Materiais.map(x => $('option', { value: x.id }, x.nome)));
+  selM.value = F.mat;
+  const selS = $('select', { onchange: e => { F.st = e.target.value; render(); } }, [['ativo', 'Ativos'], ['encerrado', 'Encerrados'], ['', 'Todos']].map(([v, t]) => $('option', { value: v }, t)));
+  selS.value = F.st;
+  m.append($('div', { class: 'row', style: 'margin-bottom:12px' }, selM, selS, $('input', { placeholder: 'Buscar lote / NF', value: F.q, oninput: e => { F.q = e.target.value; pintaLista(); } })));
+  const lista = $('div'); m.append(lista);
+  function pintaLista() {
+    const q = F.q.toLowerCase();
+    const ls = S.data.Lotes.filter(l => (!F.mat || l.materialId === F.mat) && (!F.st || (l.status || 'ativo') === F.st) && (!q || (l.numeroLote + ' ' + l.notaFiscal + ' ' + mat(l.materialId).nome).toLowerCase().includes(q)))
+      .sort((a, b) => (b.dataEntrada || '').localeCompare(a.dataEntrada || ''));
+    lista.replaceChildren(...(ls.length ? ls.map(l => $('div', { class: 'card lote', onclick: () => detalhe(l.id) }, $('h3', {}, rotLote(l)),
+      $('div', { class: 'muted' }, `Entrada ${fData(l.dataEntrada)} · NF ${l.notaFiscal || '-'} · saldo ${num(saldo(l))} de ${num(l.qtd)} ${mat(l.materialId).unidade}`),
+      alertas(l).map(([c, t]) => $('span', { class: 'tag ' + c }, t)))) : [$('div', { class: 'muted' }, 'Nenhum lote')]));
+  }
+  pintaLista();
+}
+
+function detalhe(id) {
+  const l = S.data.Lotes.find(x => x.id === id); if (!l) return;
+  const corpo = $('div'); let fechar;
+  const pode = ['administrador', 'almoxarife'].includes(S.u.perfil);
+  const podeOc = ['administrador', 'almoxarife', 'compras'].includes(S.u.perfil);
+  const podeRes = ['administrador', 'compras'].includes(S.u.perfil);
+  const pinta = () => {
+    const lib = libDe(l.id), ocs = S.data.Ocorrencias.filter(o => o.loteId === l.id);
+    corpo.replaceChildren(
+      $('div', { class: 'card' }, $('div', {}, `${rotLote(l)}`), $('div', { class: 'muted' }, `Fornecedor ${l.fornecedor || '-'} · NF ${l.notaFiscal || '-'} · Fab. ${fData(l.dataFabricacao)} · Val. ${fData(l.validade)}`),
+        $('div', { class: 'muted' }, `Entrada ${fData(l.dataEntrada)} · ${num(l.qtd)} ${mat(l.materialId).unidade} · saldo ${num(saldo(l))} · local ${l.local || '-'} · por ${l.por || '-'}`), l.obs ? $('div', { class: 'muted' }, l.obs) : null, alertas(l).map(([c, t]) => $('span', { class: 'tag ' + c }, t)), thumbs('lote', l.id)),
+      $('b', {}, 'Liberações'),
+      lib.length ? lib.map(x => $('div', { class: 'card' }, $('div', {}, `${fData(x.dataLiberacao)} · ${num(x.qtd)} → ${x.destino}`), $('div', { class: 'muted' }, `Abertura: ${fData(x.dataAbertura)} · por ${x.por || '-'}${x.obs ? ' · ' + x.obs : ''}`), thumbs('liberacao', x.id),
+        pode ? $('button', { class: 'btn sec sm', style: 'margin-top:8px', onclick: () => abertura(x) }, 'Data de abertura') : null)) : $('div', { class: 'muted' }, 'Nenhuma'),
+      $('b', {}, 'Ocorrências'),
+      ocs.length ? ocs.map(o => $('div', { class: 'card' }, $('div', {}, `${fData(o.data)} · ${o.descricao}`), $('span', { class: 'tag ' + (o.status === 'aberta' ? 'er' : 'ok') }, o.status), o.resolucao ? $('div', { class: 'muted' }, o.resolucao) : null,
+        o.status === 'aberta' && podeRes ? $('button', { class: 'btn sec sm', style: 'margin-top:8px', onclick: () => resolver(o) }, 'Resolver') : null)) : $('div', { class: 'muted' }, 'Nenhuma'),
+      $('div', { class: 'row', style: 'margin-top:14px' },
+        podeOc ? $('button', { class: 'btn er', onclick: () => ocorrencia(l) }, 'Ocorrência') : null,
+        $('button', { class: 'btn', onclick: () => gerarPDF({ modo: 'lotes', lotes: [l], fotos: true }) }, 'PDF'),
+        pode ? $('button', { class: 'btn sec', onclick: async () => { await enfileirar('salvarLote', { id: l.id, materialId: l.materialId, numeroLote: l.numeroLote, dataEntrada: l.dataEntrada, qtd: l.qtd, status: l.status === 'encerrado' ? 'ativo' : 'encerrado' }); sincronizar(); pinta(); } }, l.status === 'encerrado' ? 'Reativar' : 'Encerrar') : null));
+  };
+  pinta(); fechar = modal(rotLote(l), corpo);
+}
+function abertura(x) {
+  let v = x.dataAbertura || hojeISO(); let fechar;
+  const i = $('input', { type: 'date', value: v, oninput: e => v = e.target.value });
+  fechar = modal('Abertura do saco', $('div', {}, i, $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { await enfileirar('salvarLiberacao', { id: x.id, loteId: x.loteId, qtd: x.qtd, destino: x.destino, dataLiberacao: x.dataLiberacao, dataAbertura: v, obs: x.obs || '' }); fechar(); sincronizar(); render(); } }, 'Salvar')));
+}
+function ocorrencia(l) {
+  let t = '', fechar;
+  fechar = modal('Ocorrência', $('div', {}, $('label', {}, 'O que aconteceu'), $('textarea', { oninput: e => t = e.target.value }), $('button', { class: 'btn er', style: 'width:100%;margin-top:14px', onclick: async () => { if (!t.trim()) return toast('Descreva'); await enfileirar('salvarOcorrencia', { id: uid(), loteId: l.id, descricao: t.trim(), data: hojeISO() }); fechar(); sincronizar(); render(); } }, 'Registrar')));
+}
+function resolver(o) {
+  let t = '', fechar;
+  fechar = modal('Resolver', $('div', {}, $('label', {}, 'Resolução'), $('textarea', { oninput: e => t = e.target.value }), $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { await enfileirar('resolverOcorrencia', { id: o.id, resolucao: t }); fechar(); sincronizar(); render(); } }, 'Salvar')));
+}
+
+/* ===== RELATORIO / PDF ===== */
+function relatorio(m) {
+  const R = { modo: 'lotes', mat: '', lote: '', destino: '', de: '', ate: '', fotos: true };
+  const selM = $('select', { onchange: e => { R.mat = e.target.value; R.lote = ''; pintaL(); } }, $('option', { value: '' }, 'Todos os materiais'), S.data.Materiais.map(x => $('option', { value: x.id }, x.nome)));
+  const selL = $('select', { onchange: e => R.lote = e.target.value });
+  const pintaL = () => { selL.replaceChildren($('option', { value: '' }, 'Todos os lotes'), ...S.data.Lotes.filter(l => !R.mat || l.materialId === R.mat).map(l => $('option', { value: l.id }, rotLote(l)))); };
+  pintaL();
+  const selD = $('select', { onchange: e => R.destino = e.target.value }, $('option', { value: '' }, 'Todos os locais'), [...new Set(S.data.Liberacoes.map(x => x.destino))].sort().map(d => $('option', { value: d }, d)));
+  const selMode = $('select', { onchange: e => R.modo = e.target.value }, $('option', { value: 'lotes' }, 'Por lote'), $('option', { value: 'local' }, 'Por local'));
+  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:16px', onclick: async () => {
+    bt.disabled = true; bt.textContent = 'Gerando…';
+    try { await gerarPDF(Object.assign({}, R, { lotes: null })); } catch (e) { toast('Erro: ' + e.message); }
+    bt.disabled = false; bt.textContent = 'Gerar PDF';
+  } }, 'Gerar PDF');
+  m.append($('div', { class: 'card' }, selMode, $('label', {}, 'Material'), selM, $('label', {}, 'Lote'), selL, $('label', {}, 'Local'), selD,
+    $('div', { class: 'row' }, $('div', {}, $('label', {}, 'De'), $('input', { type: 'date', oninput: e => R.de = e.target.value })), $('div', {}, $('label', {}, 'Até'), $('input', { type: 'date', oninput: e => R.ate = e.target.value }))),
+    $('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px' }, $('input', { type: 'checkbox', checked: true, style: 'width:24px;min-height:24px', onchange: e => R.fotos = e.target.checked }), 'Com fotos'), bt));
+}
+
+const dimsImg = u => new Promise(r => { const i = new Image(); i.onload = () => r([i.width, i.height]); i.onerror = () => r([4, 3]); i.src = u; });
+async function logoDataUrl() { try { const b = await (await fetch('logo.png')).blob(); if (!b.type.startsWith('image/')) return null; return await new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); }); } catch (e) { return null; } }
+
+async function gerarPDF(o) {
+  if (!window.jspdf) return toast('PDF indisponível offline');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, H = 297, M = 14; let y = 30;
+  const logo = await logoDataUrl();
+  const nova = () => { doc.addPage(); y = 30; };
+  const cabeca = () => { doc.setFillColor(111, 111, 111); doc.rect(0, 0, W, 20, 'F'); doc.setTextColor(255); doc.setFontSize(13); doc.text('Controle de Lotes', M, 13); if (logo) { try { doc.addImage(logo, 'PNG', W - M - 28, 3, 28, 14, undefined, 'FAST'); } catch (e) { } } doc.setTextColor(40); };
+  const garante = h => { if (y + h > H - 18) nova(); };
+  const txt = (t, tam = 10, neg = false) => { doc.setFontSize(tam); doc.setFont('helvetica', neg ? 'bold' : 'normal'); doc.splitTextToSize(String(t), W - 2 * M).forEach(l => { garante(tam * 0.5); doc.text(l, M, y); y += tam * 0.45 + 1.2; }); };
+  const fotos = async lista => {
+    if (!o.fotos || !lista.length) return;
+    let x = M; const larg = 56, alt = 42;
+    for (const f of lista) {
+      let u; try { u = await urlFoto(f.id); } catch (e) { continue; }
+      if (x + larg > W - M + 1) { x = M; y += alt + 4; }
+      garante(alt + 6);
+      const [iw, ih] = await dimsImg(u); const e = Math.min(larg / iw, alt / ih);
+      try { doc.addImage(u, 'JPEG', x, y, iw * e, ih * e, undefined, 'FAST'); } catch (er) { }
+      doc.setFontSize(7); doc.text(f.tipo, x, y + alt + 3);
+      x += larg + 4;
+    }
+    y += alt + 8;
+  };
+  cabeca();
+  const periodo = x => (!o.de || (x || '') >= o.de) && (!o.ate || (x || '') <= o.ate);
+  let nomeArq;
+  if (o.modo === 'local') {
+    const libs = S.data.Liberacoes.filter(x => (!o.destino || x.destino === o.destino) && periodo(x.dataLiberacao) && (() => { const l = S.data.Lotes.find(y => y.id === x.loteId); return l && (!o.mat || l.materialId === o.mat) && (!o.lote || l.id === o.lote); })());
+    txt('Relatório por local', 15, true); txt(`Emitido em ${fData(hojeISO())} por ${S.u.nome}`, 9); y += 3;
+    const grupos = {}; libs.forEach(x => (grupos[x.destino] = grupos[x.destino] || []).push(x));
+    for (const [d, ls] of Object.entries(grupos).sort()) {
+      garante(30); txt(d, 12, true);
+      for (const x of ls.sort((a, b) => (a.dataLiberacao || '').localeCompare(b.dataLiberacao || ''))) {
+        const l = S.data.Lotes.find(y => y.id === x.loteId);
+        txt(`${fData(x.dataLiberacao)} · ${rotLote(l)} · ${num(x.qtd)} ${mat(l.materialId).unidade} · abertura ${fData(x.dataAbertura)} · NF ${l.notaFiscal || '-'}`, 9);
+        await fotos(fotosDe('liberacao', x.id));
+      }
+      y += 4;
+    }
+    if (!libs.length) txt('Nada encontrado.', 10);
+    nomeArq = `LOCAL - ${fNome(o.destino || 'todos')} - ${ddmmaa()}.pdf`;
+  } else {
+    const ls = o.lotes || S.data.Lotes.filter(l => (!o.mat || l.materialId === o.mat) && (!o.lote || l.id === o.lote) && (periodo(l.dataEntrada) || libDe(l.id).some(x => periodo(x.dataLiberacao))) && (!o.destino || libDe(l.id).some(x => x.destino === o.destino)));
+    txt(ls.length === 1 ? 'Relatório de lote' : 'Relatório de lotes', 15, true); txt(`Emitido em ${fData(hojeISO())} por ${S.u.nome}`, 9); y += 3;
+    for (const l of ls) {
+      garante(45); txt(rotLote(l), 12, true);
+      txt(`Fornecedor ${l.fornecedor || '-'} · NF ${l.notaFiscal || '-'} · Fab. ${fData(l.dataFabricacao)} · Val. ${fData(l.validade)}`, 9);
+      txt(`Entrada ${fData(l.dataEntrada)} · recebido ${num(l.qtd)} ${mat(l.materialId).unidade} · saldo ${num(saldo(l))} · local ${l.local || '-'} · recebido por ${l.por || '-'}`, 9);
+      if (l.obs) txt(l.obs, 9);
+      await fotos(fotosDe('lote', l.id));
+      const lib = libDe(l.id).filter(x => (!o.destino || x.destino === o.destino) && periodo(x.dataLiberacao));
+      if (lib.length) txt('Liberações', 10, true);
+      for (const x of lib) { txt(`${fData(x.dataLiberacao)} · ${num(x.qtd)} para ${x.destino} · abertura ${fData(x.dataAbertura)} · por ${x.por || '-'}${x.obs ? ' · ' + x.obs : ''}`, 9); await fotos(fotosDe('liberacao', x.id)); }
+      S.data.Ocorrencias.filter(c => c.loteId === l.id).forEach(c => txt(`Ocorrência ${fData(c.data)} (${c.status}): ${c.descricao}${c.resolucao ? ' — ' + c.resolucao : ''}`, 9));
+      y += 6;
+    }
+    if (!ls.length) txt('Nada encontrado.', 10);
+    nomeArq = ls.length === 1 ? `LOTE - ${fNome(mat(ls[0].materialId).nome)} - ${fNome(ls[0].numeroLote)} - ${ddmmaa()}.pdf` : `LOTES - ${fNome(o.mat ? mat(o.mat).nome : 'todos')} - ${ddmmaa()}.pdf`;
+  }
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) { doc.setPage(i); if (i > 1) cabeca(); doc.setFontSize(8); doc.setTextColor(110); doc.text(`Página ${i} de ${n}`, W - M, H - 8, { align: 'right' }); doc.text('Controle de Lotes', M, H - 8); doc.setTextColor(40); }
+  doc.save(nomeArq);
+}
+
+/* ===== CADASTROS / HISTORICO ===== */
+function cadastros(m) {
+  const bloco = (titulo, itens, novo) => $('div', { class: 'card' }, $('div', { class: 'row', style: 'align-items:center' }, $('b', {}, titulo), $('button', { class: 'btn sm', style: 'flex:0 0 auto', onclick: novo }, '+')), itens);
+  m.append(
+    bloco('Materiais', S.data.Materiais.map(x => $('div', { style: 'padding:8px 0;border-bottom:1px solid var(--g3)', onclick: () => formCad('materiais', x) }, `${x.nome} · ${x.unidade}${x.ativo === 'nao' ? ' (inativo)' : ''}`)), () => formCad('materiais', null)),
+    bloco('Destinos', S.data.Destinos.map(x => $('div', { style: 'padding:8px 0;border-bottom:1px solid var(--g3)', onclick: () => formCad('destinos', x) }, x.nome + (x.ativo === 'nao' ? ' (inativo)' : ''))), () => formCad('destinos', null)),
+    bloco('Usuários', S.data.Usuarios.map(x => $('div', { style: 'padding:8px 0;border-bottom:1px solid var(--g3)', onclick: () => formUsu(x) }, `${x.nome} · ${x.perfil}${x.ativo === 'nao' ? ' (inativo)' : ''}`)), () => formUsu(null)));
+}
+function formCad(tabela, x) {
+  const f = Object.assign({ id: uid(), nome: '', categoria: '', unidade: 'un', tipo: 'frente', ativo: 'sim' }, x || {}); let fechar;
+  const inp = (r, k) => $('div', {}, $('label', {}, r), $('input', { value: f[k], oninput: e => f[k] = e.target.value }));
+  const ativo = $('select', { onchange: e => f.ativo = e.target.value }, $('option', { value: 'sim' }, 'Ativo'), $('option', { value: 'nao' }, 'Inativo')); ativo.value = f.ativo;
+  fechar = modal(x ? 'Editar' : 'Novo', $('div', {}, inp('Nome', 'nome'), tabela === 'materiais' ? [inp('Categoria', 'categoria'), inp('Unidade (saco, balde, kg, m²)', 'unidade')] : null, $('label', {}, 'Situação'), ativo,
+    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); await enfileirar('salvarCadastro', Object.assign({ tabela }, f)); fechar(); sincronizar(); render(); } }, 'Salvar')));
+}
+function formUsu(x) {
+  const f = Object.assign({ id: 'u-' + uid(), nome: '', perfil: 'almoxarife', ativo: 'sim', pin: '' }, x || {}); let fechar;
+  const perfil = $('select', { onchange: e => f.perfil = e.target.value }, ['administrador', 'almoxarife', 'compras', 'consulta'].map(p => $('option', { value: p }, p))); perfil.value = f.perfil;
+  const ativo = $('select', { onchange: e => f.ativo = e.target.value }, $('option', { value: 'sim' }, 'Ativo'), $('option', { value: 'nao' }, 'Inativo')); ativo.value = f.ativo;
+  fechar = modal(x ? 'Editar usuário' : 'Novo usuário', $('div', {}, $('label', {}, 'Nome'), $('input', { value: f.nome, oninput: e => f.nome = e.target.value }), $('label', {}, 'Perfil'), perfil, $('label', {}, 'Situação'), ativo,
+    $('label', {}, x ? 'Nova senha (vazio = manter)' : 'Senha (4 a 8 números)'), $('input', { type: 'password', inputmode: 'numeric', pattern: '[0-9]*', oninput: e => f.pin = e.target.value.replace(/\D/g, '') }),
+    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); if (!x && !/^\d{4,8}$/.test(f.pin)) return toast('Senha: 4 a 8 números'); if (f.pin && !/^\d{4,8}$/.test(f.pin)) return toast('Senha: 4 a 8 números'); await enfileirar('salvarUsuario', f); fechar(); sincronizar(); render(); } }, 'Salvar')));
+}
+async function historico(m) {
+  m.append($('div', { class: 'muted' }, 'Carregando…'));
+  try {
+    const r = await api('historico');
+    m.replaceChildren($('div', { class: 'card' }, r.ok ? $('table', {}, r.itens.map(h => $('tr', {}, $('td', {}, h.quando.replace('T', ' ').slice(0, 16)), $('td', {}, h.quem), $('td', {}, h.acao), $('td', {}, h.detalhe)))) : r.erro));
+  } catch (e) { m.replaceChildren($('div', { class: 'muted' }, 'Sem conexão')); }
+}
+
+/* ===== INICIO ===== */
+async function iniciar() {
+  if (!S.data) S.data = (await kvGet('data')) || null;
+  await atualizarPend();
+  if (S.data) render();
+  else document.getElementById('app').replaceChildren($('main', {}, $('div', { class: 'muted' }, 'Carregando…')));
+  if (S.online && !API_URL.startsWith('COLE')) { try { await sincronizar(); if (!S.data) await recarregar(); } catch (e) { } }
+  else if (!S.data) toast('Sem dados locais');
+}
+window.addEventListener('online', () => { S.online = true; barra(); sincronizar(); });
+window.addEventListener('offline', () => { S.online = false; barra(); });
+setInterval(sincronizar, 30000);
+(async () => {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
+  const ses = await kvGet('sessao');
+  if (ses && ses.token) { S.token = ses.token; S.u = ses.u; await iniciar(); }
+  else telaLogin();
+})();
+</script>
+</body>
+</html>
