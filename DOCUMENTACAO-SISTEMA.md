@@ -52,4 +52,5 @@ Paleta cinza; pouquíssimo texto; janelas só fecham pelo X; botões grandes par
 Servidor simulado + navegador automatizado: login, abas por perfil, foto obrigatória, recebimento, liberação offline na fila, envio ao voltar a internet, agrupamento de passos, detalhe do lote e PDF gerado — 11 de 11 verificações passaram.
 
 ## Histórico de versões
+- **1.0.1 (31/10/2026):** URL do servidor configurada no site.
 - **1.0.0 (31/10/2026):** primeira versão.
