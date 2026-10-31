@@ -1,4 +1,4 @@
 # Controle de Lotes
 
-Registro de recebimento e liberação de materiais por lote, com fotos e relatório em PDF.
+Registro de entrega de material na obra, com foto do lote e relatório em PDF por local.
 Veja `DOCUMENTACAO-SISTEMA.md`.

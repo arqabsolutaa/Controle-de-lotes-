@@ -1,49 +1,46 @@
 /**
  * CONTROLE DE LOTES - Servidor (Google Apps Script)
- * Versao 1.0.0
+ * Versao 2.0.0 - registro de entrega de material (foto do lote)
  *
- * Como instalar (resumo): abrir a planilha Google > Extensoes > Apps Script >
- * colar este arquivo inteiro > rodar setup() > Implantar como App da Web
- * (executar como: eu / acesso: qualquer pessoa) > copiar a URL para o index.html.
- * Quando este arquivo mudar: colar inteiro, rodar setup() e publicar "Nova versao".
+ * Quando este arquivo mudar: colar INTEIRO no Apps Script, rodar setup() e
+ * publicar "Nova versao" da implantacao (Implantar > Gerenciar implantacoes > Editar > Nova versao).
  */
 
-var VERSAO = '1.0.0';
+var VERSAO = '2.0.0';
 var PASTA_NOME = 'Controle de Lotes - Fotos';
 var TOKEN_DIAS = 30;
+var SENHA_INICIAL = '1234';
 
-var PERFIS = ['administrador', 'almoxarife', 'compras', 'consulta'];
+var PERFIS = ['administrador', 'almoxarife', 'compras'];
 var TODOS = PERFIS;
-var ESCRITA_OBRA = ['administrador', 'almoxarife'];
+var ENTREGA = ['administrador', 'almoxarife'];
 
 var TABELAS = {
-  Materiais:   ['id', 'nome', 'categoria', 'unidade', 'ativo'],
-  Lotes:       ['id', 'materialId', 'numeroLote', 'fornecedor', 'notaFiscal', 'dataFabricacao', 'validade', 'dataEntrada', 'qtd', 'local', 'obs', 'status', 'por', 'criadoEm'],
-  Liberacoes:  ['id', 'loteId', 'qtd', 'destino', 'dataLiberacao', 'dataAbertura', 'obs', 'por', 'criadoEm'],
-  Ocorrencias: ['id', 'loteId', 'descricao', 'data', 'status', 'por', 'criadoEm', 'resolucao'],
-  Fotos:       ['id', 'refTipo', 'refId', 'tipo', 'arquivo', 'por', 'criadoEm'],
-  Destinos:    ['id', 'nome', 'tipo', 'ativo'],
-  Usuarios:    ['id', 'nome', 'perfil', 'ativo'],
-  Historico:   ['id', 'quando', 'quem', 'acao', 'detalhe']
+  Materiais: ['id', 'nome', 'categoria', 'unidade', 'ativo'],
+  Entregas:  ['id', 'materialId', 'local', 'retiradoPor', 'data', 'obs', 'por', 'criadoEm'],
+  Fotos:     ['id', 'refTipo', 'refId', 'tipo', 'arquivo', 'por', 'criadoEm'],
+  Usuarios:  ['id', 'nome', 'perfil', 'ativo'],
+  Historico: ['id', 'quando', 'quem', 'acao', 'detalhe']
 };
 
-var NUMERICAS = { qtd: true };
+var USUARIOS_INICIAIS = [
+  { id: 'u-admin',   nome: 'Barbara',    perfil: 'administrador' },
+  { id: 'u-almox',   nome: 'Almoxarife', perfil: 'almoxarife' },
+  { id: 'u-compras', nome: 'Compras',    perfil: 'compras' }
+];
 
 /* Tabela de acoes: quem pode e se e somente leitura */
 var ACOES = {
-  usuariosLogin:     { publica: true, ro: true },
-  login:             { publica: true, ro: true },
-  carregar:          { perfis: TODOS, ro: true },
-  obterFoto:         { perfis: TODOS, ro: true },
-  historico:         { perfis: ['administrador'], ro: true },
-  salvarLote:        { perfis: ESCRITA_OBRA },
-  salvarLiberacao:   { perfis: ESCRITA_OBRA },
-  salvarFoto:        { perfis: ESCRITA_OBRA },
-  salvarOcorrencia:  { perfis: ['administrador', 'almoxarife', 'compras'] },
-  resolverOcorrencia:{ perfis: ['administrador', 'compras'] },
-  salvarCadastro:    { perfis: ['administrador'] },
-  salvarUsuario:     { perfis: ['administrador'] },
-  lote:              { perfis: TODOS }   // agrupa passos; cada passo e conferido
+  usuariosLogin:  { publica: true, ro: true },
+  login:          { publica: true, ro: true },
+  carregar:       { perfis: TODOS, ro: true },
+  obterFoto:      { perfis: TODOS, ro: true },
+  historico:      { perfis: ['administrador'], ro: true },
+  salvarEntrega:  { perfis: ENTREGA },
+  salvarFoto:     { perfis: ENTREGA },
+  salvarCadastro: { perfis: ['administrador', 'compras'] },
+  salvarUsuario:  { perfis: ['administrador'] },
+  batch:          { perfis: TODOS }   // agrupa passos; cada passo e conferido
 };
 
 var _cache = {};
@@ -67,46 +64,40 @@ function setup() {
   if (padrao && ss.getSheets().length > 1) ss.deleteSheet(padrao);
 
   if (!props.getProperty('PASTA_ID')) {
-    var pasta = DriveApp.createFolder(PASTA_NOME);
-    props.setProperty('PASTA_ID', pasta.getId());
+    props.setProperty('PASTA_ID', DriveApp.createFolder(PASTA_NOME).getId());
   }
 
-  // Materiais e destinos iniciais (so se vazios)
   if (lerTabela('Materiais').length === 0) {
-    [['Argamassa de fachada', 'Argamassa', 'saco'], ['Argamassa colante', 'Argamassa', 'saco'],
-     ['Impermeabilizante', 'Impermeabilizacao', 'balde'], ['Rejunte', 'Acabamento', 'saco']]
-      .forEach(function (m) { inserir('Materiais', { id: novoId(), nome: m[0], categoria: m[1], unidade: m[2], ativo: 'sim' }); });
+    ['Argamassa de fachada', 'Argamassa colante', 'Impermeabilizante', 'Rejunte']
+      .forEach(function (n) { inserir('Materiais', { id: novoId(), nome: n, categoria: '', unidade: '', ativo: 'sim' }); });
   }
-  if (lerTabela('Destinos').length === 0) {
-    ['Fachada', 'Torre - areas comuns', 'Apartamentos', 'Deposito']
-      .forEach(function (n) { inserir('Destinos', { id: novoId(), nome: n, tipo: 'frente', ativo: 'sim' }); });
-  }
-  // Administrador inicial (trocar a senha no app)
-  if (lerTabela('Usuarios').length === 0) {
-    inserir('Usuarios', { id: 'u-admin', nome: 'Barbara', perfil: 'administrador', ativo: 'sim' });
-    definirSenha('u-admin', '1234');
-  }
-  Logger.log('Setup concluido. Administrador inicial: Barbara, senha 1234 (troque no app).');
+
+  // Usuarios iniciais (so cria os que faltam; nao mexe em senha de quem ja existe)
+  var existentes = lerTabela('Usuarios').map(function (u) { return u.id; });
+  USUARIOS_INICIAIS.forEach(function (u) {
+    if (existentes.indexOf(u.id) >= 0) return;
+    inserir('Usuarios', { id: u.id, nome: u.nome, perfil: u.perfil, ativo: 'sim' });
+    definirSenha(u.id, SENHA_INICIAL);
+  });
+  Logger.log('Setup concluido. Usuarios: Barbara (administrador), Almoxarife, Compras. Senha inicial: ' + SENHA_INICIAL);
 }
 
 /* Rodar no editor para trocar uma senha: definirSenha('u-admin', '987654') */
 function definirSenha(uid, pin) {
-  var props = PropertiesService.getScriptProperties();
-  props.setProperty('PIN_' + uid, hashPin(uid, pin));
+  PropertiesService.getScriptProperties().setProperty('PIN_' + uid, hashPin(uid, pin));
 }
 
 /* ========================= ENTRADA ========================= */
 
 function doGet() {
-  return saida({ ok: true, app: 'controle-lotes', versao: VERSAO });
+  return saida({ ok: true, app: 'controle-de-lotes', versao: VERSAO });
 }
 
 function doPost(e) {
   var req;
   try { req = JSON.parse(e.postData.contents); }
   catch (err) { return saida({ ok: false, erro: 'JSON invalido' }); }
-  var r = executar(req.acao, req.dados || {}, req.token);
-  return saida(r);
+  return saida(executar(req.acao, req.dados || {}, req.token));
 }
 
 function saida(obj) {
@@ -170,7 +161,7 @@ var HANDLERS = {
 
   carregar: function (d, usuario) {
     var out = { ok: true, versao: VERSAO, usuario: usuario };
-    ['Materiais', 'Lotes', 'Liberacoes', 'Ocorrencias', 'Fotos', 'Destinos'].forEach(function (t) { out[t] = lerTabela(t); });
+    ['Materiais', 'Entregas', 'Fotos'].forEach(function (t) { out[t] = lerTabela(t); });
     out.Usuarios = usuario.perfil === 'administrador' ? lerTabela('Usuarios') : [];
     return out;
   },
@@ -178,39 +169,23 @@ var HANDLERS = {
   obterFoto: function (d) {
     var f = lerTabela('Fotos').filter(function (x) { return x.id === d.id; })[0];
     if (!f) return { ok: false, erro: 'Foto nao encontrada' };
-    var arq = DriveApp.getFileById(f.arquivo);
-    var b = arq.getBlob();
+    var b = DriveApp.getFileById(f.arquivo).getBlob();
     return { ok: true, id: f.id, dataUrl: 'data:' + b.getContentType() + ';base64,' + Utilities.base64Encode(b.getBytes()) };
   },
 
   historico: function () {
-    var h = lerTabela('Historico');
-    return { ok: true, itens: h.slice(-500).reverse() };
+    return { ok: true, itens: lerTabela('Historico').slice(-500).reverse() };
   },
 
-  salvarLote: function (d, u) {
-    exigir(d, ['id', 'materialId', 'numeroLote', 'dataEntrada', 'qtd']);
+  salvarEntrega: function (d, u) {
+    exigir(d, ['id', 'materialId', 'local', 'retiradoPor', 'data']);
+    if (!lerTabela('Materiais').some(function (m) { return m.id === d.materialId; })) throw new Error('Material nao encontrado');
     var obj = {
-      id: d.id, materialId: d.materialId, numeroLote: String(d.numeroLote).trim(),
-      fornecedor: d.fornecedor || '', notaFiscal: d.notaFiscal || '',
-      dataFabricacao: d.dataFabricacao || '', validade: d.validade || '',
-      dataEntrada: d.dataEntrada, qtd: Number(d.qtd), local: d.local || '',
-      obs: d.obs || '', status: d.status || 'ativo', por: u.nome, criadoEm: agora()
+      id: d.id, materialId: d.materialId, local: String(d.local).trim(), retiradoPor: String(d.retiradoPor).trim(),
+      data: d.data, obs: d.obs || '', por: u.nome, criadoEm: agora()
     };
-    var novo = upsert('Lotes', obj);
-    historico(u, novo ? 'Recebimento' : 'Edicao de lote', obj.numeroLote + ' (' + obj.qtd + ')');
-    return { ok: true, id: d.id };
-  },
-
-  salvarLiberacao: function (d, u) {
-    exigir(d, ['id', 'loteId', 'qtd', 'destino', 'dataLiberacao']);
-    var obj = {
-      id: d.id, loteId: d.loteId, qtd: Number(d.qtd), destino: d.destino,
-      dataLiberacao: d.dataLiberacao, dataAbertura: d.dataAbertura || '',
-      obs: d.obs || '', por: u.nome, criadoEm: agora()
-    };
-    var novo = upsert('Liberacoes', obj);
-    historico(u, novo ? 'Liberacao' : 'Edicao de liberacao', d.loteId + ' -> ' + obj.destino + ' (' + obj.qtd + ')');
+    var novo = upsert('Entregas', obj, ['materialId', 'local', 'retiradoPor', 'data', 'obs']);
+    historico(u, novo ? 'Entrega' : 'Edicao de entrega', obj.local + ' / ' + obj.retiradoPor);
     return { ok: true, id: d.id };
   },
 
@@ -226,31 +201,11 @@ var HANDLERS = {
     return { ok: true, id: d.id };
   },
 
-  salvarOcorrencia: function (d, u) {
-    exigir(d, ['id', 'loteId', 'descricao']);
-    var obj = { id: d.id, loteId: d.loteId, descricao: d.descricao, data: d.data || hoje(), status: 'aberta', por: u.nome, criadoEm: agora(), resolucao: '' };
-    var novo = upsert('Ocorrencias', obj, ['descricao']);
-    historico(u, 'Ocorrencia', d.loteId + ': ' + d.descricao);
-    return { ok: true, id: d.id };
-  },
-
-  resolverOcorrencia: function (d, u) {
-    exigir(d, ['id']);
-    var ok = atualizar('Ocorrencias', d.id, { status: 'resolvida', resolucao: d.resolucao || '' });
-    if (!ok) return { ok: false, erro: 'Ocorrencia nao encontrada' };
-    historico(u, 'Ocorrencia resolvida', d.id);
-    return { ok: true, id: d.id };
-  },
-
   salvarCadastro: function (d, u) {
-    var tabela = { materiais: 'Materiais', destinos: 'Destinos' }[d.tabela];
-    if (!tabela) return { ok: false, erro: 'Cadastro invalido' };
     exigir(d, ['id', 'nome']);
-    var obj = tabela === 'Materiais'
-      ? { id: d.id, nome: d.nome, categoria: d.categoria || '', unidade: d.unidade || 'un', ativo: d.ativo || 'sim' }
-      : { id: d.id, nome: d.nome, tipo: d.tipo || 'frente', ativo: d.ativo || 'sim' };
-    upsert(tabela, obj, Object.keys(obj));
-    historico(u, 'Cadastro ' + d.tabela, d.nome);
+    var obj = { id: d.id, nome: String(d.nome).trim(), categoria: '', unidade: '', ativo: d.ativo || 'sim' };
+    upsert('Materiais', obj, ['nome', 'ativo']);
+    historico(u, 'Material', obj.nome + ' (' + obj.ativo + ')');
     return { ok: true, id: d.id };
   },
 
@@ -259,18 +214,17 @@ var HANDLERS = {
     if (PERFIS.indexOf(d.perfil) < 0) return { ok: false, erro: 'Perfil invalido' };
     if (d.pin && !/^\d{4,8}$/.test(String(d.pin))) return { ok: false, erro: 'Senha: 4 a 8 numeros' };
     var obj = { id: d.id, nome: d.nome, perfil: d.perfil, ativo: d.ativo || 'sim' };
-    upsert('Usuarios', obj, Object.keys(obj));
+    upsert('Usuarios', obj, ['nome', 'perfil', 'ativo']);
     if (d.pin) definirSenha(d.id, String(d.pin));
     historico(u, 'Usuario', d.nome + ' (' + d.perfil + ')');
     return { ok: true, id: d.id };
   },
 
   /* Agrupa varios passos em uma chamada: dados.passos = [{acao, dados}] */
-  lote: function (d, usuario) {
-    var passos = d.passos || [];
-    var resultados = passos.map(function (p) {
+  batch: function (d, usuario) {
+    var resultados = (d.passos || []).map(function (p) {
       var def = ACOES[p.acao];
-      if (!def || p.acao === 'lote' || def.publica) return { ok: false, erro: 'Passo invalido' };
+      if (!def || p.acao === 'batch' || def.publica) return { ok: false, erro: 'Passo invalido' };
       if (def.perfis && def.perfis.indexOf(usuario.perfil) < 0) return { ok: false, erro: 'Sem permissao' };
       try { return HANDLERS[p.acao](p.dados || {}, usuario); }
       catch (err) { return { ok: false, erro: String(err && err.message || err) }; }
@@ -292,14 +246,13 @@ function lerTabela(nome) {
   var n = sh.getLastRow() - 1;
   var out = [];
   if (n > 0) {
-    var vals = sh.getRange(2, 1, n, cab.length).getValues();
-    vals.forEach(function (linha) {
+    sh.getRange(2, 1, n, cab.length).getValues().forEach(function (linha) {
       if (linha[0] === '' || linha[0] === null) return;
       var o = {};
       cab.forEach(function (c, i) {
         var v = linha[i];
         if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-        o[c] = NUMERICAS[c] ? Number(v) : String(v === null ? '' : v);
+        o[c] = String(v === null ? '' : v);
       });
       out.push(o);
     });
@@ -316,13 +269,12 @@ function inserir(nome, obj) {
   delete _cache[nome];
 }
 
-/* Insere se o id nao existe; se existe, atualiza so os campos de "campos" (ou todos, menos criadoEm). Retorna true se foi novo. */
+/* Insere se o id nao existe; se existe, atualiza so os campos de "campos". Retorna true se foi novo. */
 function upsert(nome, obj, campos) {
   var existe = lerTabela(nome).some(function (x) { return x.id === obj.id; });
   if (!existe) { inserir(nome, obj); return true; }
   var parcial = {};
-  var lista = campos || Object.keys(obj).filter(function (k) { return k !== 'criadoEm' && k !== 'por' && k !== 'id'; });
-  lista.forEach(function (k) { if (k !== 'id') parcial[k] = obj[k]; });
+  campos.forEach(function (k) { parcial[k] = obj[k]; });
   atualizar(nome, obj.id, parcial);
   return false;
 }
@@ -354,13 +306,12 @@ function historico(u, acao, detalhe) {
 
 function exigir(d, campos) {
   campos.forEach(function (c) {
-    if (d[c] === undefined || d[c] === null || d[c] === '') throw new Error('Campo obrigatorio: ' + c);
+    if (d[c] === undefined || d[c] === null || String(d[c]).trim() === '') throw new Error('Campo obrigatorio: ' + c);
   });
 }
 
 function novoId() { return Utilities.getUuid().replace(/-/g, '').slice(0, 12); }
 function agora() { return Utilities.formatDate(new Date(), 'America/Sao_Paulo', "yyyy-MM-dd'T'HH:mm:ss"); }
-function hoje() { return Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd'); }
 
 function hashPin(uid, pin) {
   var salt = PropertiesService.getScriptProperties().getProperty('SALT');

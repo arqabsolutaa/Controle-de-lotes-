@@ -81,7 +81,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;b
 'use strict';
 /* ===== CONFIG ===== */
 const API_URL = 'https://script.google.com/macros/s/AKfycbxNAKzpN-DJRvrmbyUVIiqCOpLNtdIq_yZ_a_hncZkdupgtZ-udWTVqT_CBiP0gRwpIPQ/exec';
-const VERSAO_APP = '1.0.0';
+const VERSAO_APP = '2.0.0';
 
 /* ===== UTIL ===== */
 const $ = (t, a = {}, ...k) => {
@@ -102,8 +102,11 @@ const hojeISO = () => { const d = new Date(); return new Date(d - d.getTimezoneO
 const fData = s => { if (!s) return '-'; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : s; };
 const fNome = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
 const ddmmaa = () => { const d = hojeISO(); return `${d.slice(8)}-${d.slice(5, 7)}-${d.slice(2, 4)}`; };
+const normT = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[º°ª]/g, '').replace(/\s+/g, ' ').trim();
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* "8 andar" acha "8º andar", mas nao acha "18º andar" */
+const bateLocal = (local, q) => { const n = normT(q); if (!n) return true; return new RegExp('(^|[^a-z0-9])' + escRe(n)).test(normT(local)); };
 function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2800); }
-const num = n => (Math.round(n * 100) / 100).toLocaleString('pt-BR');
 
 /* ===== IndexedDB (fila offline + copia local) ===== */
 let _db;
@@ -124,12 +127,14 @@ const filaAll = () => tx('fila', 'readonly', s => s.getAll()).then(r => r || [])
 const filaDel = async seqs => { const d = await db(); return new Promise(res => { const t = d.transaction('fila', 'readwrite'); seqs.forEach(q => t.objectStore('fila').delete(q)); t.oncomplete = res; }); };
 
 /* ===== ESTADO ===== */
-const S = { token: null, u: null, data: null, tab: 'painel', pend: 0, erros: [], online: navigator.onLine, fotos: {}, filtro: { mat: '', st: 'ativo', q: '' } };
+const CHAVES = ['Materiais', 'Entregas', 'Fotos', 'Usuarios'];
+const garantir = d => { d = d || {}; CHAVES.forEach(k => { if (!Array.isArray(d[k])) d[k] = []; }); return d; };
+const S = { token: null, u: null, data: null, tab: 'entregar', pend: 0, erros: [], online: navigator.onLine, fotos: {}, filtro: { mat: '', q: '' } };
+const NOMES = { entregar: 'Entregar', entregas: 'Entregas', relatorio: 'Relatório', cadastros: 'Cadastros', historico: 'Histórico' };
 const TABS = {
-  administrador: [['painel', 'Painel'], ['receber', 'Receber'], ['liberar', 'Liberar'], ['lotes', 'Lotes'], ['relatorio', 'Relatório'], ['cadastros', 'Cadastros'], ['historico', 'Histórico']],
-  almoxarife: [['painel', 'Painel'], ['receber', 'Receber'], ['liberar', 'Liberar'], ['lotes', 'Lotes'], ['relatorio', 'Relatório']],
-  compras: [['painel', 'Painel'], ['lotes', 'Lotes'], ['relatorio', 'Relatório']],
-  consulta: [['painel', 'Painel'], ['lotes', 'Lotes'], ['relatorio', 'Relatório']]
+  administrador: ['entregar', 'entregas', 'relatorio', 'cadastros', 'historico'],
+  almoxarife: ['entregar', 'entregas', 'relatorio'],
+  compras: ['entregas', 'relatorio', 'cadastros']
 };
 
 /* ===== API ===== */
@@ -143,12 +148,9 @@ function aplicar(data, acao, d) {
   const up = (nome, obj) => { const l = data[nome]; const i = l.findIndex(x => x.id === obj.id); if (i < 0) l.push(obj); else l[i] = Object.assign(l[i], obj); };
   const por = S.u ? S.u.nome : '';
   switch (acao) {
-    case 'salvarLote': up('Lotes', Object.assign({ status: 'ativo', por }, d, { qtd: Number(d.qtd) })); break;
-    case 'salvarLiberacao': up('Liberacoes', Object.assign({ por }, d, { qtd: Number(d.qtd) })); break;
+    case 'salvarEntrega': up('Entregas', Object.assign({ por, criadoEm: new Date().toISOString() }, d)); break;
     case 'salvarFoto': if (!data.Fotos.some(f => f.id === d.id)) data.Fotos.push({ id: d.id, refTipo: d.refTipo, refId: d.refId, tipo: d.tipo, arquivo: 'local', por }); break;
-    case 'salvarOcorrencia': up('Ocorrencias', { id: d.id, loteId: d.loteId, descricao: d.descricao, data: d.data || hojeISO(), status: 'aberta', por, resolucao: '' }); break;
-    case 'resolverOcorrencia': { const o = data.Ocorrencias.find(x => x.id === d.id); if (o) { o.status = 'resolvida'; o.resolucao = d.resolucao || ''; } break; }
-    case 'salvarCadastro': up(d.tabela === 'materiais' ? 'Materiais' : 'Destinos', Object.assign({ ativo: 'sim' }, d)); break;
+    case 'salvarCadastro': up('Materiais', Object.assign({ ativo: 'sim' }, d)); break;
     case 'salvarUsuario': up('Usuarios', { id: d.id, nome: d.nome, perfil: d.perfil, ativo: d.ativo || 'sim' }); break;
   }
 }
@@ -160,16 +162,17 @@ async function enfileirar(acao, dados) {
 }
 async function atualizarPend() { S.pend = (await filaAll()).length; barra(); }
 
-let syncing = false;
+let syncing = false, denovo = false;
 async function sincronizar() {
-  if (syncing || !S.online || !S.token || API_URL.startsWith('COLE')) return;
+  if (!S.online || !S.token || API_URL.startsWith('COLE')) return;
+  if (syncing) { denovo = true; return; }
   syncing = true; barra();
   try {
     for (;;) {
       const itens = await filaAll(); if (!itens.length) break;
       const grupo = itens.slice(0, 6);
-      const r = await api('lote', { passos: grupo.map(i => ({ acao: i.acao, dados: i.dados })) });
-      if (!r.ok) { if (r.sessao) { sairLogin(true); } break; }
+      const r = await api('batch', { passos: grupo.map(i => ({ acao: i.acao, dados: i.dados })) });
+      if (!r.ok) { if (r.sessao) sairLogin(); break; }
       const del = [];
       r.resultados.forEach((x, k) => {
         if (x.ok) del.push(grupo[k].seq);
@@ -180,14 +183,13 @@ async function sincronizar() {
     }
     await recarregar(true);
   } catch (e) { /* sem rede: tenta depois */ }
-  finally { syncing = false; await atualizarPend(); }
+  finally { syncing = false; await atualizarPend(); if (denovo) { denovo = false; sincronizar(); } }
 }
 async function recarregar(silencioso) {
   const r = await api('carregar');
-  if (!r.ok) { if (r.sessao) sairLogin(true); return; }
-  const data = {}; ['Materiais', 'Lotes', 'Liberacoes', 'Ocorrencias', 'Fotos', 'Destinos', 'Usuarios'].forEach(t => data[t] = r[t] || []);
-  const fila = await filaAll();
-  fila.forEach(i => aplicar(data, i.acao, i.dados));
+  if (!r.ok) { if (r.sessao) sairLogin(); return; }
+  const data = garantir({}); CHAVES.forEach(t => data[t] = r[t] || []);
+  (await filaAll()).forEach(i => aplicar(data, i.acao, i.dados));
   S.data = data; await kvSet('data', data);
   if (!silencioso || !document.querySelector('.ov')) render();
 }
@@ -205,10 +207,10 @@ function comprimir(file) {
     img.onerror = () => rej(new Error('imagem')); img.src = url;
   });
 }
-function fotoCampo(rotulo, lista, onChange) {
+function fotoCampo(rotulo, lista) {
   const box = $('div'), th = $('div', { class: 'thumbs' });
-  const pinta = () => { th.replaceChildren(...lista.map((u, i) => $('div', { style: 'position:relative' }, $('img', { src: u }), $('button', { class: 'x', style: 'position:absolute;top:-6px;right:-6px;width:30px;height:30px;font-size:16px', onclick: () => { lista.splice(i, 1); pinta(); onChange && onChange(); } }, '×')))); };
-  const mk = cap => { const i = $('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async () => { for (const f of i.files) { try { lista.push(await comprimir(f)); } catch (e) { toast('Foto inválida'); } } i.value = ''; pinta(); onChange && onChange(); } }); if (cap) i.setAttribute('capture', 'environment'); return i; };
+  const pinta = () => { th.replaceChildren(...lista.map((u, i) => $('div', { style: 'position:relative' }, $('img', { src: u }), $('button', { class: 'x', type: 'button', style: 'position:absolute;top:-6px;right:-6px;width:30px;height:30px;font-size:16px', onclick: () => { lista.splice(i, 1); pinta(); } }, '×')))); };
+  const mk = cap => { const i = $('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async () => { for (const f of i.files) { try { lista.push(await comprimir(f)); } catch (e) { toast('Foto inválida'); } } i.value = ''; pinta(); } }); if (cap) i.setAttribute('capture', 'environment'); return i; };
   const cam = mk(true), gal = mk(false);
   box.append($('label', {}, rotulo), $('div', { class: 'row' }, $('button', { class: 'btn', type: 'button', onclick: () => cam.click() }, 'Câmera'), $('button', { class: 'btn sec', type: 'button', onclick: () => gal.click() }, 'Galeria')), cam, gal, th);
   return box;
@@ -221,13 +223,13 @@ async function urlFoto(id) {
   if (!r.ok) throw new Error(r.erro);
   return S.fotos[id] = r.dataUrl;
 }
-function thumbs(refTipo, refId) {
-  const lista = S.data.Fotos.filter(f => f.refTipo === refTipo && f.refId === refId);
+function thumbs(refId) {
+  const lista = S.data.Fotos.filter(f => f.refTipo === 'entrega' && f.refId === refId);
   const box = $('div', { class: 'thumbs' });
   if (!lista.length) box.append($('div', { class: 'ph' }, 'sem foto'));
   lista.forEach(f => {
-    const ph = $('div', { class: 'ph' }, f.tipo); box.append(ph);
-    urlFoto(f.id).then(u => { const im = $('img', { src: u, onclick: () => ampliar(u) }); ph.replaceWith(im); }).catch(() => { ph.textContent = 'offline'; });
+    const ph = $('div', { class: 'ph' }, '…'); box.append(ph);
+    urlFoto(f.id).then(u => { ph.replaceWith($('img', { src: u, onclick: () => ampliar(u) })); }).catch(() => { ph.textContent = 'offline'; });
   });
   return box;
 }
@@ -241,26 +243,13 @@ function modal(titulo, corpo) {
   document.body.append(ov); return fechar;
 }
 
-/* ===== CALCULOS ===== */
-const mat = id => S.data.Materiais.find(m => m.id === id) || { nome: '?', unidade: '' };
-const libDe = id => S.data.Liberacoes.filter(l => l.loteId === id);
-const saldo = l => l.qtd - libDe(l.id).reduce((s, x) => s + Number(x.qtd), 0);
-const fotosDe = (t, id) => S.data.Fotos.filter(f => f.refTipo === t && f.refId === id);
-const rotLote = l => `${mat(l.materialId).nome} · lote ${l.numeroLote}`;
-function alertas(l) {
-  const a = [], s = saldo(l);
-  if (!fotosDe('lote', l.id).some(f => f.tipo === 'etiqueta')) a.push(['er', 'sem foto da etiqueta']);
-  if (libDe(l.id).some(x => !fotosDe('liberacao', x.id).length)) a.push(['al', 'liberação sem foto']);
-  if (s < 0) a.push(['er', 'saldo negativo']);
-  if (S.data.Ocorrencias.some(o => o.loteId === l.id && o.status === 'aberta')) a.push(['er', 'ocorrência aberta']);
-  if (l.validade) { const dias = (new Date(l.validade) - new Date(hojeISO())) / 864e5; if (dias < 0) a.push(['er', 'vencido']); else if (dias <= 30) a.push(['al', 'vence em ' + Math.round(dias) + 'd']); }
-  return a;
-}
-function misturas() {
-  const m = {};
-  S.data.Liberacoes.forEach(x => { const l = S.data.Lotes.find(y => y.id === x.loteId); if (!l) return; const k = l.materialId + '|' + x.destino; (m[k] = m[k] || new Set()).add(l.numeroLote); });
-  return Object.entries(m).filter(([, s]) => s.size > 1).map(([k, s]) => ({ material: mat(k.split('|')[0]).nome, destino: k.split('|').slice(1).join('|'), lotes: [...s] }));
-}
+/* ===== DADOS ===== */
+const mat = id => S.data.Materiais.find(m => m.id === id) || { nome: '?' };
+const unicos = campo => [...new Set(S.data.Entregas.map(e => (e[campo] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+const ordena = l => l.slice().sort((a, b) => (b.data || '').localeCompare(a.data || '') || (b.criadoEm || '').localeCompare(a.criadoEm || ''));
+const nFotos = id => S.data.Fotos.filter(f => f.refTipo === 'entrega' && f.refId === id).length;
+const datalist = (id, itens) => $('datalist', { id }, itens.map(v => $('option', { value: v })));
+const filtrar = o => S.data.Entregas.filter(e => (!o.mat || e.materialId === o.mat) && bateLocal(e.local, o.local) && (!o.de || (e.data || '') >= o.de) && (!o.ate || (e.data || '') <= o.ate));
 
 /* ===== LOGIN ===== */
 async function telaLogin() {
@@ -277,7 +266,7 @@ async function telaLogin() {
       const r = await api('login', { usuarioId: sel.value, pin });
       if (!r.ok) { toast(r.erro); pin = ''; pinta(); return; }
       S.token = r.token; S.u = r.usuario; await kvSet('sessao', { token: r.token, u: r.usuario });
-      S.data = null; await iniciar();
+      S.data = null; S.tab = TABS[r.usuario.perfil][0]; await iniciar();
     } catch (e) { toast('Sem conexão'); }
   };
   const tecla = n => $('button', { type: 'button', onclick: () => { if (pin.length < 8) { pin += n; pinta(); } } }, n);
@@ -288,19 +277,19 @@ async function telaLogin() {
     $('button', { class: 'entrar', type: 'button', onclick: entrar }, 'Entrar')
   )));
 }
-async function sairLogin(manterFila) { S.token = null; S.u = null; await kvSet('sessao', null); telaLogin(); }
+async function sairLogin() { S.token = null; S.u = null; await kvSet('sessao', null); telaLogin(); }
 
 /* ===== TELAS ===== */
 function render() {
   if (!S.u || !S.data) return;
   const app = document.getElementById('app'); app.replaceChildren();
-  const tabs = TABS[S.u.perfil];
-  if (!tabs.some(t => t[0] === S.tab)) S.tab = 'painel';
+  const tabs = TABS[S.u.perfil] || [];
+  if (!tabs.includes(S.tab)) S.tab = tabs[0];
   app.append($('header', {},
     $('div', { class: 'top' }, $('b', {}, 'Controle de Lotes'), $('span', { class: 'sync', id: 'sync', onclick: () => { sincronizar(); if (S.erros.length) mostrarErros(); } }), $('span', { style: 'font-size:13px' }, S.u.nome), $('button', { class: 'btn sec sm', onclick: () => sairLogin() }, 'Sair')),
-    $('nav', {}, tabs.map(([k, n]) => $('button', { class: S.tab === k ? 'on' : '', onclick: () => { S.tab = k; render(); } }, n)))));
+    $('nav', {}, tabs.map(k => $('button', { class: S.tab === k ? 'on' : '', onclick: () => { S.tab = k; render(); } }, NOMES[k])))));
   const main = $('main'); app.append(main);
-  ({ painel, receber, liberar, lotes, relatorio, cadastros, historico })[S.tab](main);
+  ({ entregar, entregas, relatorio, cadastros, historico })[S.tab](main);
   barra();
 }
 function barra() {
@@ -310,151 +299,78 @@ function barra() {
 }
 function mostrarErros() { modal('Erros de envio', $('div', {}, S.erros.map(e => $('p', {}, `${e.acao}: ${e.erro}`)), $('button', { class: 'btn', onclick: () => { S.erros = []; barra(); } }, 'Limpar'))); }
 
-function painel(m) {
-  const ativos = S.data.Lotes.filter(l => l.status !== 'encerrado');
-  const semFoto = S.data.Lotes.filter(l => !fotosDe('lote', l.id).some(f => f.tipo === 'etiqueta'));
-  const libSem = S.data.Liberacoes.filter(x => !fotosDe('liberacao', x.id).length);
-  const oc = S.data.Ocorrencias.filter(o => o.status === 'aberta');
-  const mis = misturas();
-  const kpi = (t, n, c) => $('div', { class: 'kpi ' + (n && c ? c : '') }, $('small', {}, t), $('strong', {}, n));
-  m.append($('div', { class: 'grid' }, kpi('Lotes ativos', ativos.length), kpi('Sem foto da etiqueta', semFoto.length, 'er'), kpi('Liberações sem foto', libSem.length, 'al'), kpi('Ocorrências abertas', oc.length, 'er'), kpi('Lote misto no mesmo local', mis.length, 'al')));
-  const porMat = {};
-  ativos.forEach(l => { const k = l.materialId; porMat[k] = porMat[k] || { s: 0, n: 0 }; porMat[k].s += saldo(l); porMat[k].n++; });
-  m.append($('div', { class: 'card' }, $('b', {}, 'Saldo por material'), $('table', {}, Object.entries(porMat).map(([k, v]) => $('tr', {}, $('td', {}, mat(k).nome), $('td', {}, v.n + ' lote(s)'), $('td', {}, num(v.s) + ' ' + mat(k).unidade))))));
-  if (mis.length) m.append($('div', { class: 'card' }, $('b', {}, 'Mais de um lote no mesmo local'), mis.map(x => $('div', { class: 'muted' }, `${x.material} · ${x.destino} · lotes ${x.lotes.join(', ')}`))));
-  const pend = [...semFoto.map(l => [l, 'sem foto da etiqueta']), ...oc.map(o => [S.data.Lotes.find(l => l.id === o.loteId), 'ocorrência: ' + o.descricao])].filter(p => p[0]);
-  if (pend.length) m.append($('div', { class: 'card' }, $('b', {}, 'Atenção'), pend.map(([l, t]) => $('div', { class: 'lote', style: 'padding:8px 0', onclick: () => detalhe(l.id) }, $('div', {}, rotLote(l)), $('div', { class: 'muted' }, t)))));
-}
-
-function receber(m) {
-  const f = { mat: '', numero: '', forn: '', nf: '', fab: '', val: '', data: hojeISO(), qtd: '', local: '', obs: '' };
-  const etiq = [], nota = [];
-  const ativos = S.data.Materiais.filter(x => x.ativo !== 'nao');
-  const inp = (rot, k, tipo = 'text', extra = {}) => $('div', {}, $('label', {}, rot), $('input', Object.assign({ type: tipo, value: f[k], oninput: e => f[k] = e.target.value }, extra)));
-  const selM = $('select', { onchange: e => f.mat = e.target.value }, $('option', { value: '' }, 'Material'), ativos.map(x => $('option', { value: x.id }, x.nome)));
-  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:16px', onclick: async () => {
-    if (!f.mat || !f.numero.trim() || !f.qtd || Number(f.qtd) <= 0) return toast('Material, lote e quantidade');
-    if (!etiq.length) return toast('Foto da etiqueta é obrigatória');
-    bt.disabled = true;
-    const id = uid();
-    await enfileirar('salvarLote', { id, materialId: f.mat, numeroLote: f.numero.trim(), fornecedor: f.forn, notaFiscal: f.nf, dataFabricacao: f.fab, validade: f.val, dataEntrada: f.data, qtd: Number(f.qtd), local: f.local, obs: f.obs });
-    for (const [lista, tipo] of [[etiq, 'etiqueta'], [nota, 'nota']]) for (const b of lista) await enfileirar('salvarFoto', { id: uid(), refTipo: 'lote', refId: id, tipo, base64: b });
-    toast('Recebimento salvo'); S.tab = 'lotes'; render(); sincronizar();
-  } }, 'Salvar recebimento');
-  m.append($('div', { class: 'card' }, $('label', {}, 'Material'), selM,
-    $('div', { class: 'row' }, inp('Nº do lote', 'numero'), inp('Quantidade', 'qtd', 'number', { inputmode: 'decimal', step: 'any' })),
-    $('div', { class: 'row' }, inp('Fornecedor', 'forn'), inp('Nota fiscal', 'nf')),
-    $('div', { class: 'row' }, inp('Fabricação', 'fab', 'date'), inp('Validade', 'val', 'date'), inp('Entrada', 'data', 'date')),
-    inp('Local de armazenamento', 'local'),
-    fotoCampo('Foto da etiqueta do lote *', etiq), fotoCampo('Foto da nota (opcional)', nota),
-    $('label', {}, 'Observação'), $('textarea', { oninput: e => f.obs = e.target.value }), bt));
-}
-
-function liberar(m) {
-  const f = { lote: '', qtd: '', destino: '', detalhe: '', data: hojeISO(), abertura: '', obs: '' };
+/* --- Entregar (almoxarife) --- */
+function entregar(m, ed) {
+  const f = { mat: ed ? ed.materialId : '', local: ed ? ed.local : '', retirou: ed ? ed.retiradoPor : '', data: ed ? ed.data : hojeISO() };
   const fotos = [];
-  const lotesOk = S.data.Lotes.filter(l => l.status !== 'encerrado').sort((a, b) => (b.dataEntrada || '').localeCompare(a.dataEntrada || ''));
-  const aviso = $('div', { class: 'warn' });
-  const checa = () => {
-    aviso.textContent = '';
-    const l = S.data.Lotes.find(x => x.id === f.lote); if (!l) return;
-    const dest = f.destino + (f.detalhe ? ' - ' + f.detalhe : '');
-    const outros = new Set(S.data.Liberacoes.filter(x => x.destino === dest && S.data.Lotes.find(y => y.id === x.loteId && y.materialId === l.materialId && y.id !== l.id)).map(x => S.data.Lotes.find(y => y.id === x.loteId).numeroLote));
-    if (f.destino && outros.size) aviso.textContent = 'Outro lote deste material já foi liberado para este local: ' + [...outros].join(', ');
-  };
-  const selL = $('select', { onchange: e => { f.lote = e.target.value; checa(); } }, $('option', { value: '' }, 'Lote'), lotesOk.map(l => $('option', { value: l.id }, `${rotLote(l)} (saldo ${num(saldo(l))} ${mat(l.materialId).unidade})`)));
-  const selD = $('select', { onchange: e => { f.destino = e.target.value; checa(); } }, $('option', { value: '' }, 'Destino'), S.data.Destinos.filter(d => d.ativo !== 'nao').map(d => $('option', { value: d.nome }, d.nome)));
-  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:16px', onclick: async () => {
-    if (!f.lote || !f.qtd || Number(f.qtd) <= 0 || !f.destino) return toast('Lote, quantidade e destino');
-    if (!fotos.length) return toast('Foto do lote é obrigatória');
-    const l = S.data.Lotes.find(x => x.id === f.lote);
-    if (Number(f.qtd) > saldo(l) && !confirm('Quantidade maior que o saldo. Salvar mesmo assim?')) return;
+  const ativos = S.data.Materiais.filter(x => x.ativo !== 'nao' || (ed && x.id === ed.materialId));
+  const selM = $('select', { onchange: e => f.mat = e.target.value }, $('option', { value: '' }, 'Material'), ativos.map(x => $('option', { value: x.id }, x.nome)));
+  selM.value = f.mat;
+  const inp = (rot, k, extra = {}) => $('div', {}, $('label', {}, rot), $('input', Object.assign({ value: f[k], oninput: e => f[k] = e.target.value }, extra)));
+  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:18px', onclick: async () => {
+    if (!f.mat) return toast('Escolha o material');
+    if (!f.local.trim()) return toast('Informe para onde vai');
+    if (!f.retirou.trim()) return toast('Informe quem retirou');
+    if (!ed && !fotos.length) return toast('Foto do lote é obrigatória');
     bt.disabled = true;
-    const id = uid();
-    await enfileirar('salvarLiberacao', { id, loteId: f.lote, qtd: Number(f.qtd), destino: f.destino + (f.detalhe ? ' - ' + f.detalhe : ''), dataLiberacao: f.data, dataAbertura: f.abertura, obs: f.obs });
-    for (const b of fotos) await enfileirar('salvarFoto', { id: uid(), refTipo: 'liberacao', refId: id, tipo: 'lote', base64: b });
-    toast('Liberação salva'); S.tab = 'painel'; render(); sincronizar();
-  } }, 'Salvar liberação');
-  const inp = (rot, k, tipo = 'text', extra = {}) => $('div', {}, $('label', {}, rot), $('input', Object.assign({ type: tipo, value: f[k], oninput: e => { f[k] = e.target.value; if (k === 'detalhe') checa(); } }, extra)));
-  m.append($('div', { class: 'card' }, $('label', {}, 'Lote'), selL, $('div', { class: 'row' }, inp('Quantidade', 'qtd', 'number', { inputmode: 'decimal', step: 'any' }), inp('Data', 'data', 'date')),
-    $('label', {}, 'Destino'), selD, inp('Detalhe do local (face, pavimento, apto)', 'detalhe'), aviso, inp('Abertura do saco (opcional)', 'abertura', 'date'),
-    fotoCampo('Foto do lote liberado *', fotos), $('label', {}, 'Observação'), $('textarea', { oninput: e => f.obs = e.target.value }), bt));
+    const id = ed ? ed.id : uid();
+    await enfileirar('salvarEntrega', { id, materialId: f.mat, local: f.local.trim(), retiradoPor: f.retirou.trim(), data: f.data, obs: ed ? ed.obs || '' : '' });
+    for (const b of fotos) await enfileirar('salvarFoto', { id: uid(), refTipo: 'entrega', refId: id, tipo: 'lote', base64: b });
+    toast(ed ? 'Entrega atualizada' : 'Entrega salva');
+    if (ed) { ed._fechar(); }
+    render(); sincronizar();
+  } }, ed ? 'Salvar alterações' : 'Salvar entrega');
+  m.append($('div', { class: 'card' }, $('label', {}, 'Material'), selM,
+    inp('Para onde vai ser usado', 'local', { list: 'locais', placeholder: 'ex.: 8º andar, fachada torre A' }),
+    inp('Quem retirou', 'retirou', { list: 'pessoas' }), inp('Data', 'data', { type: 'date' }),
+    ed ? null : fotoCampo('Foto do lote *', fotos), bt), datalist('locais', unicos('local')), datalist('pessoas', unicos('retiradoPor')));
 }
 
-function lotes(m) {
+/* --- Entregas (lista) --- */
+function entregas(m) {
   const F = S.filtro;
-  const selM = $('select', { onchange: e => { F.mat = e.target.value; render(); } }, $('option', { value: '' }, 'Material'), S.data.Materiais.map(x => $('option', { value: x.id }, x.nome)));
+  const selM = $('select', { onchange: e => { F.mat = e.target.value; pinta(); } }, $('option', { value: '' }, 'Todos os materiais'), S.data.Materiais.map(x => $('option', { value: x.id }, x.nome)));
   selM.value = F.mat;
-  const selS = $('select', { onchange: e => { F.st = e.target.value; render(); } }, [['ativo', 'Ativos'], ['encerrado', 'Encerrados'], ['', 'Todos']].map(([v, t]) => $('option', { value: v }, t)));
-  selS.value = F.st;
-  m.append($('div', { class: 'row', style: 'margin-bottom:12px' }, selM, selS, $('input', { placeholder: 'Buscar lote / NF', value: F.q, oninput: e => { F.q = e.target.value; pintaLista(); } })));
-  const lista = $('div'); m.append(lista);
-  function pintaLista() {
-    const q = F.q.toLowerCase();
-    const ls = S.data.Lotes.filter(l => (!F.mat || l.materialId === F.mat) && (!F.st || (l.status || 'ativo') === F.st) && (!q || (l.numeroLote + ' ' + l.notaFiscal + ' ' + mat(l.materialId).nome).toLowerCase().includes(q)))
-      .sort((a, b) => (b.dataEntrada || '').localeCompare(a.dataEntrada || ''));
-    lista.replaceChildren(...(ls.length ? ls.map(l => $('div', { class: 'card lote', onclick: () => detalhe(l.id) }, $('h3', {}, rotLote(l)),
-      $('div', { class: 'muted' }, `Entrada ${fData(l.dataEntrada)} · NF ${l.notaFiscal || '-'} · saldo ${num(saldo(l))} de ${num(l.qtd)} ${mat(l.materialId).unidade}`),
-      alertas(l).map(([c, t]) => $('span', { class: 'tag ' + c }, t)))) : [$('div', { class: 'muted' }, 'Nenhum lote')]));
+  const lista = $('div');
+  m.append($('div', { class: 'row', style: 'margin-bottom:12px' }, selM, $('input', { placeholder: 'Buscar local ou pessoa', value: F.q, oninput: e => { F.q = e.target.value; pinta(); } })), lista);
+  function pinta() {
+    const q = normT(F.q);
+    const ls = ordena(S.data.Entregas.filter(e => (!F.mat || e.materialId === F.mat) && (!q || normT(e.local + ' ' + e.retiradoPor + ' ' + mat(e.materialId).nome).includes(q)))).slice(0, 200);
+    lista.replaceChildren(...(ls.length ? ls.map(e => $('div', { class: 'card lote', onclick: () => detalhe(e.id) },
+      $('h3', {}, mat(e.materialId).nome), $('div', { class: 'muted' }, `${fData(e.data)} · ${e.local}`), $('div', { class: 'muted' }, `Retirado por ${e.retiradoPor}`),
+      nFotos(e.id) ? null : $('span', { class: 'tag er' }, 'sem foto'))) : [$('div', { class: 'muted' }, 'Nenhuma entrega')]));
   }
-  pintaLista();
+  pinta();
 }
-
 function detalhe(id) {
-  const l = S.data.Lotes.find(x => x.id === id); if (!l) return;
+  const e = S.data.Entregas.find(x => x.id === id); if (!e) return;
   const corpo = $('div'); let fechar;
-  const pode = ['administrador', 'almoxarife'].includes(S.u.perfil);
-  const podeOc = ['administrador', 'almoxarife', 'compras'].includes(S.u.perfil);
-  const podeRes = ['administrador', 'compras'].includes(S.u.perfil);
-  const pinta = () => {
-    const lib = libDe(l.id), ocs = S.data.Ocorrencias.filter(o => o.loteId === l.id);
-    corpo.replaceChildren(
-      $('div', { class: 'card' }, $('div', {}, `${rotLote(l)}`), $('div', { class: 'muted' }, `Fornecedor ${l.fornecedor || '-'} · NF ${l.notaFiscal || '-'} · Fab. ${fData(l.dataFabricacao)} · Val. ${fData(l.validade)}`),
-        $('div', { class: 'muted' }, `Entrada ${fData(l.dataEntrada)} · ${num(l.qtd)} ${mat(l.materialId).unidade} · saldo ${num(saldo(l))} · local ${l.local || '-'} · por ${l.por || '-'}`), l.obs ? $('div', { class: 'muted' }, l.obs) : null, alertas(l).map(([c, t]) => $('span', { class: 'tag ' + c }, t)), thumbs('lote', l.id)),
-      $('b', {}, 'Liberações'),
-      lib.length ? lib.map(x => $('div', { class: 'card' }, $('div', {}, `${fData(x.dataLiberacao)} · ${num(x.qtd)} → ${x.destino}`), $('div', { class: 'muted' }, `Abertura: ${fData(x.dataAbertura)} · por ${x.por || '-'}${x.obs ? ' · ' + x.obs : ''}`), thumbs('liberacao', x.id),
-        pode ? $('button', { class: 'btn sec sm', style: 'margin-top:8px', onclick: () => abertura(x) }, 'Data de abertura') : null)) : $('div', { class: 'muted' }, 'Nenhuma'),
-      $('b', {}, 'Ocorrências'),
-      ocs.length ? ocs.map(o => $('div', { class: 'card' }, $('div', {}, `${fData(o.data)} · ${o.descricao}`), $('span', { class: 'tag ' + (o.status === 'aberta' ? 'er' : 'ok') }, o.status), o.resolucao ? $('div', { class: 'muted' }, o.resolucao) : null,
-        o.status === 'aberta' && podeRes ? $('button', { class: 'btn sec sm', style: 'margin-top:8px', onclick: () => resolver(o) }, 'Resolver') : null)) : $('div', { class: 'muted' }, 'Nenhuma'),
-      $('div', { class: 'row', style: 'margin-top:14px' },
-        podeOc ? $('button', { class: 'btn er', onclick: () => ocorrencia(l) }, 'Ocorrência') : null,
-        $('button', { class: 'btn', onclick: () => gerarPDF({ modo: 'lotes', lotes: [l], fotos: true }) }, 'PDF'),
-        pode ? $('button', { class: 'btn sec', onclick: async () => { await enfileirar('salvarLote', { id: l.id, materialId: l.materialId, numeroLote: l.numeroLote, dataEntrada: l.dataEntrada, qtd: l.qtd, status: l.status === 'encerrado' ? 'ativo' : 'encerrado' }); sincronizar(); pinta(); } }, l.status === 'encerrado' ? 'Reativar' : 'Encerrar') : null));
-  };
-  pinta(); fechar = modal(rotLote(l), corpo);
+  corpo.append($('div', { class: 'card' }, $('h3', { style: 'margin:0 0 4px' }, mat(e.materialId).nome), $('div', {}, `${fData(e.data)} · ${e.local}`), $('div', { class: 'muted' }, `Retirado por ${e.retiradoPor} · registrado por ${e.por || '-'}`), thumbs(e.id)),
+    $('div', { class: 'row' }, $('button', { class: 'btn', onclick: () => gerarPDF({ ids: [e.id], fotos: true }) }, 'PDF'),
+      S.u.perfil === 'administrador' ? $('button', { class: 'btn sec', onclick: () => { fechar(); editar(e); } }, 'Editar') : null));
+  fechar = modal('Entrega', corpo);
 }
-function abertura(x) {
-  let v = x.dataAbertura || hojeISO(); let fechar;
-  const i = $('input', { type: 'date', value: v, oninput: e => v = e.target.value });
-  fechar = modal('Abertura do saco', $('div', {}, i, $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { await enfileirar('salvarLiberacao', { id: x.id, loteId: x.loteId, qtd: x.qtd, destino: x.destino, dataLiberacao: x.dataLiberacao, dataAbertura: v, obs: x.obs || '' }); fechar(); sincronizar(); render(); } }, 'Salvar')));
-}
-function ocorrencia(l) {
-  let t = '', fechar;
-  fechar = modal('Ocorrência', $('div', {}, $('label', {}, 'O que aconteceu'), $('textarea', { oninput: e => t = e.target.value }), $('button', { class: 'btn er', style: 'width:100%;margin-top:14px', onclick: async () => { if (!t.trim()) return toast('Descreva'); await enfileirar('salvarOcorrencia', { id: uid(), loteId: l.id, descricao: t.trim(), data: hojeISO() }); fechar(); sincronizar(); render(); } }, 'Registrar')));
-}
-function resolver(o) {
-  let t = '', fechar;
-  fechar = modal('Resolver', $('div', {}, $('label', {}, 'Resolução'), $('textarea', { oninput: e => t = e.target.value }), $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { await enfileirar('resolverOcorrencia', { id: o.id, resolucao: t }); fechar(); sincronizar(); render(); } }, 'Salvar')));
+function editar(e) {
+  const corpo = $('div'); const fechar = modal('Editar entrega', corpo);
+  entregar(corpo, Object.assign({}, e, { _fechar: fechar }));
 }
 
-/* ===== RELATORIO / PDF ===== */
+/* --- Relatorio --- */
 function relatorio(m) {
-  const R = { modo: 'lotes', mat: '', lote: '', destino: '', de: '', ate: '', fotos: true };
-  const selM = $('select', { onchange: e => { R.mat = e.target.value; R.lote = ''; pintaL(); } }, $('option', { value: '' }, 'Todos os materiais'), S.data.Materiais.map(x => $('option', { value: x.id }, x.nome)));
-  const selL = $('select', { onchange: e => R.lote = e.target.value });
-  const pintaL = () => { selL.replaceChildren($('option', { value: '' }, 'Todos os lotes'), ...S.data.Lotes.filter(l => !R.mat || l.materialId === R.mat).map(l => $('option', { value: l.id }, rotLote(l)))); };
-  pintaL();
-  const selD = $('select', { onchange: e => R.destino = e.target.value }, $('option', { value: '' }, 'Todos os locais'), [...new Set(S.data.Liberacoes.map(x => x.destino))].sort().map(d => $('option', { value: d }, d)));
-  const selMode = $('select', { onchange: e => R.modo = e.target.value }, $('option', { value: 'lotes' }, 'Por lote'), $('option', { value: 'local' }, 'Por local'));
+  const R = { mat: '', local: '', de: '', ate: '', fotos: true };
+  const cont = $('div', { class: 'muted', style: 'margin-top:12px' });
+  const atualiza = () => { const n = filtrar(R).length; cont.textContent = n === 1 ? '1 entrega encontrada' : `${n} entregas encontradas`; bt.disabled = !n; };
+  const selM = $('select', { onchange: e => { R.mat = e.target.value; atualiza(); } }, $('option', { value: '' }, 'Todos os materiais'), S.data.Materiais.map(x => $('option', { value: x.id }, x.nome)));
   const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:16px', onclick: async () => {
     bt.disabled = true; bt.textContent = 'Gerando…';
-    try { await gerarPDF(Object.assign({}, R, { lotes: null })); } catch (e) { toast('Erro: ' + e.message); }
-    bt.disabled = false; bt.textContent = 'Gerar PDF';
+    try { await gerarPDF(Object.assign({}, R)); } catch (e) { toast('Erro: ' + e.message); }
+    bt.textContent = 'Gerar PDF'; atualiza();
   } }, 'Gerar PDF');
-  m.append($('div', { class: 'card' }, selMode, $('label', {}, 'Material'), selM, $('label', {}, 'Lote'), selL, $('label', {}, 'Local'), selD,
-    $('div', { class: 'row' }, $('div', {}, $('label', {}, 'De'), $('input', { type: 'date', oninput: e => R.de = e.target.value })), $('div', {}, $('label', {}, 'Até'), $('input', { type: 'date', oninput: e => R.ate = e.target.value }))),
-    $('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px' }, $('input', { type: 'checkbox', checked: true, style: 'width:24px;min-height:24px', onchange: e => R.fotos = e.target.checked }), 'Com fotos'), bt));
+  m.append($('div', { class: 'card' }, $('label', {}, 'Material'), selM,
+    $('label', {}, 'Local'), $('input', { list: 'locais', placeholder: 'ex.: 8º andar', oninput: e => { R.local = e.target.value; atualiza(); } }),
+    $('div', { class: 'row' }, $('div', {}, $('label', {}, 'De'), $('input', { type: 'date', oninput: e => { R.de = e.target.value; atualiza(); } })), $('div', {}, $('label', {}, 'Até'), $('input', { type: 'date', oninput: e => { R.ate = e.target.value; atualiza(); } }))),
+    $('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px' }, $('input', { type: 'checkbox', checked: true, style: 'width:24px;min-height:24px', onchange: e => R.fotos = e.target.checked }), 'Com fotos'), cont, bt), datalist('locais', unicos('local')));
+  atualiza();
 }
 
 const dimsImg = u => new Promise(r => { const i = new Image(); i.onload = () => r([i.width, i.height]); i.onerror = () => r([4, 3]); i.src = u; });
@@ -462,6 +378,8 @@ async function logoDataUrl() { try { const b = await (await fetch('logo.png')).b
 
 async function gerarPDF(o) {
   if (!window.jspdf) return toast('PDF indisponível offline');
+  const lista = (o.ids ? S.data.Entregas.filter(e => o.ids.includes(e.id)) : filtrar(o))
+    .sort((a, b) => normT(a.local).localeCompare(normT(b.local), 'pt-BR', { numeric: true }) || (a.data || '').localeCompare(b.data || ''));
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, H = 297, M = 14; let y = 30;
@@ -470,83 +388,63 @@ async function gerarPDF(o) {
   const cabeca = () => { doc.setFillColor(111, 111, 111); doc.rect(0, 0, W, 20, 'F'); doc.setTextColor(255); doc.setFontSize(13); doc.text('Controle de Lotes', M, 13); if (logo) { try { doc.addImage(logo, 'PNG', W - M - 42, 7, 42, 42 * logoR, undefined, 'FAST'); } catch (e) { } } doc.setTextColor(40); };
   const garante = h => { if (y + h > H - 18) nova(); };
   const txt = (t, tam = 10, neg = false) => { doc.setFontSize(tam); doc.setFont('helvetica', neg ? 'bold' : 'normal'); doc.splitTextToSize(String(t), W - 2 * M).forEach(l => { garante(tam * 0.5); doc.text(l, M, y); y += tam * 0.45 + 1.2; }); };
-  const fotos = async lista => {
-    if (!o.fotos || !lista.length) return;
+  const fotos = async id => {
+    const fs = S.data.Fotos.filter(f => f.refTipo === 'entrega' && f.refId === id);
+    if (!o.fotos || !fs.length) return;
     let x = M; const larg = 56, alt = 42;
-    for (const f of lista) {
+    for (const f of fs) {
       let u; try { u = await urlFoto(f.id); } catch (e) { continue; }
       if (x + larg > W - M + 1) { x = M; y += alt + 4; }
       garante(alt + 6);
       const [iw, ih] = await dimsImg(u); const e = Math.min(larg / iw, alt / ih);
       try { doc.addImage(u, 'JPEG', x, y, iw * e, ih * e, undefined, 'FAST'); } catch (er) { }
-      doc.setFontSize(7); doc.text(f.tipo, x, y + alt + 3);
       x += larg + 4;
     }
-    y += alt + 8;
+    y += alt + 6;
   };
   cabeca();
-  const periodo = x => (!o.de || (x || '') >= o.de) && (!o.ate || (x || '') <= o.ate);
-  let nomeArq;
-  if (o.modo === 'local') {
-    const libs = S.data.Liberacoes.filter(x => (!o.destino || x.destino === o.destino) && periodo(x.dataLiberacao) && (() => { const l = S.data.Lotes.find(y => y.id === x.loteId); return l && (!o.mat || l.materialId === o.mat) && (!o.lote || l.id === o.lote); })());
-    txt('Relatório por local', 15, true); txt(`Emitido em ${fData(hojeISO())} por ${S.u.nome}`, 9); y += 3;
-    const grupos = {}; libs.forEach(x => (grupos[x.destino] = grupos[x.destino] || []).push(x));
-    for (const [d, ls] of Object.entries(grupos).sort()) {
-      garante(30); txt(d, 12, true);
-      for (const x of ls.sort((a, b) => (a.dataLiberacao || '').localeCompare(b.dataLiberacao || ''))) {
-        const l = S.data.Lotes.find(y => y.id === x.loteId);
-        txt(`${fData(x.dataLiberacao)} · ${rotLote(l)} · ${num(x.qtd)} ${mat(l.materialId).unidade} · abertura ${fData(x.dataAbertura)} · NF ${l.notaFiscal || '-'}`, 9);
-        await fotos(fotosDe('liberacao', x.id));
-      }
-      y += 4;
-    }
-    if (!libs.length) txt('Nada encontrado.', 10);
-    nomeArq = `LOCAL - ${fNome(o.destino || 'todos')} - ${ddmmaa()}.pdf`;
-  } else {
-    const ls = o.lotes || S.data.Lotes.filter(l => (!o.mat || l.materialId === o.mat) && (!o.lote || l.id === o.lote) && (periodo(l.dataEntrada) || libDe(l.id).some(x => periodo(x.dataLiberacao))) && (!o.destino || libDe(l.id).some(x => x.destino === o.destino)));
-    txt(ls.length === 1 ? 'Relatório de lote' : 'Relatório de lotes', 15, true); txt(`Emitido em ${fData(hojeISO())} por ${S.u.nome}`, 9); y += 3;
-    for (const l of ls) {
-      garante(45); txt(rotLote(l), 12, true);
-      txt(`Fornecedor ${l.fornecedor || '-'} · NF ${l.notaFiscal || '-'} · Fab. ${fData(l.dataFabricacao)} · Val. ${fData(l.validade)}`, 9);
-      txt(`Entrada ${fData(l.dataEntrada)} · recebido ${num(l.qtd)} ${mat(l.materialId).unidade} · saldo ${num(saldo(l))} · local ${l.local || '-'} · recebido por ${l.por || '-'}`, 9);
-      if (l.obs) txt(l.obs, 9);
-      await fotos(fotosDe('lote', l.id));
-      const lib = libDe(l.id).filter(x => (!o.destino || x.destino === o.destino) && periodo(x.dataLiberacao));
-      if (lib.length) txt('Liberações', 10, true);
-      for (const x of lib) { txt(`${fData(x.dataLiberacao)} · ${num(x.qtd)} para ${x.destino} · abertura ${fData(x.dataAbertura)} · por ${x.por || '-'}${x.obs ? ' · ' + x.obs : ''}`, 9); await fotos(fotosDe('liberacao', x.id)); }
-      S.data.Ocorrencias.filter(c => c.loteId === l.id).forEach(c => txt(`Ocorrência ${fData(c.data)} (${c.status}): ${c.descricao}${c.resolucao ? ' — ' + c.resolucao : ''}`, 9));
-      y += 6;
-    }
-    if (!ls.length) txt('Nada encontrado.', 10);
-    nomeArq = ls.length === 1 ? `LOTE - ${fNome(mat(ls[0].materialId).nome)} - ${fNome(ls[0].numeroLote)} - ${ddmmaa()}.pdf` : `LOTES - ${fNome(o.mat ? mat(o.mat).nome : 'todos')} - ${ddmmaa()}.pdf`;
+  const unica = o.ids && lista.length === 1;
+  txt(unica ? 'Entrega de material' : 'Relatório de entregas', 15, true);
+  txt(`Emitido em ${fData(hojeISO())} por ${S.u.nome}`, 9);
+  const filtros = [o.mat ? 'Material: ' + mat(o.mat).nome : null, o.local ? 'Local: ' + o.local : null, o.de ? 'De ' + fData(o.de) : null, o.ate ? 'Até ' + fData(o.ate) : null].filter(Boolean);
+  if (filtros.length) txt(filtros.join(' · '), 9);
+  y += 3;
+  let ultimo = null;
+  for (const e of lista) {
+    if (!unica && normT(e.local) !== ultimo) { ultimo = normT(e.local); garante(24); y += 2; txt(e.local, 12, true); }
+    garante(30);
+    txt(`${fData(e.data)} · ${mat(e.materialId).nome}`, 10, true);
+    txt(`${unica ? 'Local: ' + e.local + ' · ' : ''}Retirado por ${e.retiradoPor} · registrado por ${e.por || '-'}`, 9);
+    await fotos(e.id);
+    y += 3;
   }
+  if (!lista.length) txt('Nenhuma entrega encontrada.', 10);
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) { doc.setPage(i); if (i > 1) cabeca(); doc.setFontSize(8); doc.setTextColor(110); doc.text(`Página ${i} de ${n}`, W - M, H - 8, { align: 'right' }); doc.text('Controle de Lotes', M, H - 8); doc.setTextColor(40); }
-  doc.save(nomeArq);
+  const base = unica ? 'ENTREGA' : 'ENTREGAS';
+  doc.save(`${base} - ${fNome(o.mat ? mat(o.mat).nome : unica ? mat(lista[0].materialId).nome : 'todos os materiais')} - ${fNome(o.local || (unica ? lista[0].local : 'todos os locais'))} - ${ddmmaa()}.pdf`);
 }
 
-/* ===== CADASTROS / HISTORICO ===== */
+/* --- Cadastros --- */
 function cadastros(m) {
+  const linha = (t, f) => $('div', { style: 'padding:10px 0;border-bottom:1px solid var(--g3);cursor:pointer', onclick: f }, t);
   const bloco = (titulo, itens, novo) => $('div', { class: 'card' }, $('div', { class: 'row', style: 'align-items:center' }, $('b', {}, titulo), $('button', { class: 'btn sm', style: 'flex:0 0 auto', onclick: novo }, '+')), itens);
-  m.append(
-    bloco('Materiais', S.data.Materiais.map(x => $('div', { style: 'padding:8px 0;border-bottom:1px solid var(--g3)', onclick: () => formCad('materiais', x) }, `${x.nome} · ${x.unidade}${x.ativo === 'nao' ? ' (inativo)' : ''}`)), () => formCad('materiais', null)),
-    bloco('Destinos', S.data.Destinos.map(x => $('div', { style: 'padding:8px 0;border-bottom:1px solid var(--g3)', onclick: () => formCad('destinos', x) }, x.nome + (x.ativo === 'nao' ? ' (inativo)' : ''))), () => formCad('destinos', null)),
-    bloco('Usuários', S.data.Usuarios.map(x => $('div', { style: 'padding:8px 0;border-bottom:1px solid var(--g3)', onclick: () => formUsu(x) }, `${x.nome} · ${x.perfil}${x.ativo === 'nao' ? ' (inativo)' : ''}`)), () => formUsu(null)));
+  m.append(bloco('Materiais', S.data.Materiais.map(x => linha(x.nome + (x.ativo === 'nao' ? ' (inativo)' : ''), () => formMat(x))), () => formMat(null)));
+  if (S.u.perfil === 'administrador') m.append(bloco('Usuários', S.data.Usuarios.map(x => linha(`${x.nome} · ${x.perfil}${x.ativo === 'nao' ? ' (inativo)' : ''}`, () => formUsu(x))), () => formUsu(null)));
 }
-function formCad(tabela, x) {
-  const f = Object.assign({ id: uid(), nome: '', categoria: '', unidade: 'un', tipo: 'frente', ativo: 'sim' }, x || {}); let fechar;
-  const inp = (r, k) => $('div', {}, $('label', {}, r), $('input', { value: f[k], oninput: e => f[k] = e.target.value }));
+function formMat(x) {
+  const f = Object.assign({ id: uid(), nome: '', ativo: 'sim' }, x || {}); let fechar;
   const ativo = $('select', { onchange: e => f.ativo = e.target.value }, $('option', { value: 'sim' }, 'Ativo'), $('option', { value: 'nao' }, 'Inativo')); ativo.value = f.ativo;
-  fechar = modal(x ? 'Editar' : 'Novo', $('div', {}, inp('Nome', 'nome'), tabela === 'materiais' ? [inp('Categoria', 'categoria'), inp('Unidade (saco, balde, kg, m²)', 'unidade')] : null, $('label', {}, 'Situação'), ativo,
-    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); await enfileirar('salvarCadastro', Object.assign({ tabela }, f)); fechar(); sincronizar(); render(); } }, 'Salvar')));
+  fechar = modal(x ? 'Editar material' : 'Novo material', $('div', {}, $('label', {}, 'Nome'), $('input', { value: f.nome, oninput: e => f.nome = e.target.value }), $('label', {}, 'Situação'), ativo,
+    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); await enfileirar('salvarCadastro', { id: f.id, nome: f.nome.trim(), ativo: f.ativo }); fechar(); sincronizar(); render(); } }, 'Salvar')));
 }
 function formUsu(x) {
   const f = Object.assign({ id: 'u-' + uid(), nome: '', perfil: 'almoxarife', ativo: 'sim', pin: '' }, x || {}); let fechar;
-  const perfil = $('select', { onchange: e => f.perfil = e.target.value }, ['administrador', 'almoxarife', 'compras', 'consulta'].map(p => $('option', { value: p }, p))); perfil.value = f.perfil;
+  const perfil = $('select', { onchange: e => f.perfil = e.target.value }, ['administrador', 'almoxarife', 'compras'].map(p => $('option', { value: p }, p))); perfil.value = f.perfil;
   const ativo = $('select', { onchange: e => f.ativo = e.target.value }, $('option', { value: 'sim' }, 'Ativo'), $('option', { value: 'nao' }, 'Inativo')); ativo.value = f.ativo;
   fechar = modal(x ? 'Editar usuário' : 'Novo usuário', $('div', {}, $('label', {}, 'Nome'), $('input', { value: f.nome, oninput: e => f.nome = e.target.value }), $('label', {}, 'Perfil'), perfil, $('label', {}, 'Situação'), ativo,
     $('label', {}, x ? 'Nova senha (vazio = manter)' : 'Senha (4 a 8 números)'), $('input', { type: 'password', inputmode: 'numeric', pattern: '[0-9]*', oninput: e => f.pin = e.target.value.replace(/\D/g, '') }),
-    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); if (!x && !/^\d{4,8}$/.test(f.pin)) return toast('Senha: 4 a 8 números'); if (f.pin && !/^\d{4,8}$/.test(f.pin)) return toast('Senha: 4 a 8 números'); await enfileirar('salvarUsuario', f); fechar(); sincronizar(); render(); } }, 'Salvar')));
+    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); if ((!x || f.pin) && !/^\d{4,8}$/.test(f.pin)) return toast('Senha: 4 a 8 números'); await enfileirar('salvarUsuario', f); fechar(); sincronizar(); render(); } }, 'Salvar')));
 }
 async function historico(m) {
   m.append($('div', { class: 'muted' }, 'Carregando…'));
@@ -559,10 +457,11 @@ async function historico(m) {
 /* ===== INICIO ===== */
 async function iniciar() {
   if (!S.data) S.data = (await kvGet('data')) || null;
+  if (S.data) S.data = garantir(S.data);
   await atualizarPend();
   if (S.data) render();
   else document.getElementById('app').replaceChildren($('main', {}, $('div', { class: 'muted' }, 'Carregando…')));
-  if (S.online && !API_URL.startsWith('COLE')) { try { await sincronizar(); if (!S.data) await recarregar(); } catch (e) { } }
+  if (S.online && !API_URL.startsWith('COLE')) { try { await sincronizar(); if (!S.data || !S.data.Entregas) await recarregar(); else if (!S.pend) await recarregar(true); } catch (e) { } }
   else if (!S.data) toast('Sem dados locais');
 }
 window.addEventListener('online', () => { S.online = true; barra(); sincronizar(); });
@@ -571,7 +470,7 @@ setInterval(sincronizar, 30000);
 (async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
   const ses = await kvGet('sessao');
-  if (ses && ses.token) { S.token = ses.token; S.u = ses.u; await iniciar(); }
+  if (ses && ses.token && TABS[ses.u && ses.u.perfil]) { S.token = ses.token; S.u = ses.u; S.tab = TABS[ses.u.perfil][0]; await iniciar(); }
   else telaLogin();
 })();
 </script>
