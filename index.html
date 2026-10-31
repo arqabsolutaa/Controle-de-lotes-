@@ -23,12 +23,22 @@ label{display:block;font-size:13px;color:#555;margin:12px 0 4px}
 .btn.sm{min-height:40px;padding:0 14px;font-size:14px}
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 140px}
 /* login */
-#login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#8a8a87 url(fundo.jpg) center/cover;padding:16px}
-.lbox{width:100%;max-width:360px;background:rgba(246,245,241,.94);border-radius:18px;padding:22px;text-align:center}
-.lbox img{max-height:54px;max-width:70%;margin-bottom:10px}
-.dots{font-size:30px;letter-spacing:8px;height:42px;margin:8px 0}
-.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.pad button{min-height:60px;font-size:22px;border:0;border-radius:12px;background:#fff;box-shadow:0 1px 0 #bbb}
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
+background:linear-gradient(rgba(18,18,20,.30),rgba(18,18,20,.55)),url(fundo.jpg) center/cover,radial-gradient(circle at 28% 18%,#7a7a7d,#2e2e30 72%)}
+.lbox{width:100%;max-width:400px;padding:32px 28px 26px;border-radius:30px;color:#fff;text-align:center;
+background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(24px) saturate(125%);backdrop-filter:blur(24px) saturate(125%);
+border:1px solid rgba(255,255,255,.28);box-shadow:0 24px 64px rgba(0,0,0,.38)}
+.lbox img{max-height:58px;max-width:60%;margin-bottom:6px}
+.lbox h2{margin:6px 0 22px;font-size:34px;line-height:1.1;font-weight:500;letter-spacing:-.5px}
+.lbox h2 span{color:#d9d9d6}
+.lbox select{min-height:54px;border-radius:999px;padding:0 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.38);color:#fff;font-size:16px}
+.lbox select option{color:#222}
+.dots{font-size:30px;letter-spacing:9px;height:46px;margin:12px 0 6px;color:#fff}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pad button,.pad i{min-height:58px;font-size:22px;border-radius:999px;font-style:normal}
+.pad button{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);color:#fff;cursor:pointer}
+.pad button:active{background:rgba(255,255,255,.28)}
+.entrar{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:999px;background:#f4f4f2;color:#262626;font-size:17px;font-weight:600;cursor:pointer}
 /* topo */
 header{position:sticky;top:0;z-index:5;background:var(--g1);color:#fff}
 .top{display:flex;align-items:center;gap:10px;padding:10px 14px}
@@ -272,8 +282,9 @@ async function telaLogin() {
   const tecla = n => $('button', { type: 'button', onclick: () => { if (pin.length < 8) { pin += n; pinta(); } } }, n);
   app.append($('div', { id: 'login' }, $('div', { class: 'lbox' },
     $('img', { src: 'logo.png', onerror: e => e.target.remove(), alt: '' }),
-    $('h2', { style: 'margin:4px 0 12px' }, 'Controle de Lotes'), sel, dots,
-    $('div', { class: 'pad' }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(tecla), $('button', { type: 'button', onclick: () => { pin = pin.slice(0, -1); pinta(); } }, '⌫'), tecla(0), $('button', { type: 'button', style: 'background:var(--g1);color:#fff', onclick: entrar }, '→'))
+    $('h2', {}, 'Controle de ', $('span', {}, 'Lotes')), sel, dots,
+    $('div', { class: 'pad' }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(tecla), $('i'), tecla(0), $('button', { type: 'button', 'aria-label': 'apagar', onclick: () => { pin = pin.slice(0, -1); pinta(); } }, '⌫')),
+    $('button', { class: 'entrar', type: 'button', onclick: entrar }, 'Entrar')
   )));
 }
 async function sairLogin(manterFila) { S.token = null; S.u = null; await kvSet('sessao', null); telaLogin(); }
