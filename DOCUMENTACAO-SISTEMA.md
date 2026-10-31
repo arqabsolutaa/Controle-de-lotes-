@@ -52,6 +52,7 @@ Paleta cinza; pouquíssimo texto; janelas só fecham pelo X; botões grandes par
 Servidor simulado + navegador automatizado: login, abas por perfil, foto obrigatória, recebimento, liberação offline na fila, envio ao voltar a internet, agrupamento de passos, detalhe do lote e PDF gerado — 11 de 11 verificações passaram.
 
 ## Histórico de versões
+- **1.0.4 (31/10/2026):** fonte Lavish nos títulos (login e cabeçalho). Arquivo em `fontes/lavish.otf`; não aplicada ao PDF (jsPDF não aceita fonte OTF).
 - **1.0.3 (31/10/2026):** logo da Absoluta no login e no cabeçalho do PDF.
 - **1.0.2 (31/10/2026):** novo visual da tela de entrada (cartão de vidro sobre foto do Essence).
 - **1.0.1 (31/10/2026):** URL do servidor configurada no site.
