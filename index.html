@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#6f6f6f">
+<meta name="theme-color" content="#47512f">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Controle de Lotes</title>
 <style>
 @font-face{font-family:'Lavish';src:url(fontes/lavish.otf) format('opentype');font-display:swap}
-:root{--g1:#6f6f6f;--g2:#d6d6d3;--g3:#ececea;--off:#f6f5f1;--tx:#2b2b2b;--ok:#4f7a4f;--al:#b07a1a;--er:#a33b3b}
+:root{--g1:#47512f;--g2:#dcdac8;--g3:#ecebdd;--off:#f5f3ea;--tx:#262a1c;--am:#e6b422;--ok:#4f7a4f;--al:#b07a1a;--er:#a33b3b}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--off);color:var(--tx)}
 button,input,select,textarea{font:inherit;color:inherit}
-input,select,textarea{width:100%;min-height:48px;padding:10px 12px;border:1px solid #b9b9b5;border-radius:10px;background:#fff}
+input,select,textarea{width:100%;min-height:48px;padding:10px 12px;border:1px solid #bdbba5;border-radius:10px;background:#fff}
 textarea{min-height:72px}
-label{display:block;font-size:13px;color:#555;margin:12px 0 4px}
+label{display:block;font-size:13px;color:#5b5d48;margin:12px 0 4px}
 .btn{min-height:52px;padding:0 22px;border:0;border-radius:12px;background:var(--g1);color:#fff;font-weight:600;cursor:pointer}
 .btn.sec{background:var(--g2);color:var(--tx)}
 .btn.er{background:var(--er)}
@@ -25,13 +25,13 @@ label{display:block;font-size:13px;color:#555;margin:12px 0 4px}
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 140px}
 /* login */
 #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
-background:linear-gradient(rgba(18,18,20,.30),rgba(18,18,20,.55)),url(fundo.jpg) center/cover,radial-gradient(circle at 28% 18%,#7a7a7d,#2e2e30 72%)}
+background:linear-gradient(rgba(22,30,12,.40),rgba(22,30,12,.64)),url(fundo.jpg) center/cover,radial-gradient(circle at 28% 18%,#6f7a52,#232b15 72%)}
 .lbox{width:100%;max-width:400px;padding:32px 28px 26px;border-radius:30px;color:#fff;text-align:center;
-background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(24px) saturate(125%);backdrop-filter:blur(24px) saturate(125%);
+background:rgba(205,222,160,.12);-webkit-backdrop-filter:blur(24px) saturate(125%);backdrop-filter:blur(24px) saturate(125%);
 border:1px solid rgba(255,255,255,.28);box-shadow:0 24px 64px rgba(0,0,0,.38)}
 .lbox img{width:68%;height:auto;margin:2px 0 14px}
 .lbox h2{margin:6px 0 22px;font-family:'Lavish',Georgia,serif;font-size:42px;line-height:1.1;font-weight:400;letter-spacing:.5px}
-.lbox h2 span{color:#d9d9d6}
+.lbox h2 span{color:#d8dfb8}
 .lbox select{min-height:54px;border-radius:999px;padding:0 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.38);color:#fff;font-size:16px}
 .lbox select option{color:#222}
 .dots{font-size:30px;letter-spacing:9px;height:46px;margin:12px 0 6px;color:#fff}
@@ -39,16 +39,16 @@ border:1px solid rgba(255,255,255,.28);box-shadow:0 24px 64px rgba(0,0,0,.38)}
 .pad button,.pad i{min-height:58px;font-size:22px;border-radius:999px;font-style:normal}
 .pad button{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);color:#fff;cursor:pointer}
 .pad button:active{background:rgba(255,255,255,.28)}
-.entrar{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:999px;background:#f4f4f2;color:#262626;font-size:17px;font-weight:600;cursor:pointer}
+.entrar{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:999px;background:#f1efe2;color:#2b331a;font-size:17px;font-weight:600;cursor:pointer}
 /* topo */
 header{position:sticky;top:0;z-index:5;background:var(--g1);color:#fff}
 .top{display:flex;align-items:center;gap:10px;padding:10px 14px}
 .top b{flex:1;font-family:'Lavish',Georgia,serif;font-size:24px;font-weight:400;letter-spacing:.5px}
 .sync{font-size:13px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.2);cursor:pointer}
-.sync.pend{background:var(--al)}.sync.off{background:#444}
-nav{display:flex;overflow-x:auto;background:#5a5a58}
-nav button{flex:0 0 auto;padding:13px 18px;border:0;background:none;color:#ddd;font-weight:600;border-bottom:3px solid transparent}
-nav button.on{color:#fff;border-bottom-color:#fff}
+.sync.pend{background:var(--al)}.sync.off{background:#2f341f}
+nav{display:flex;overflow-x:auto;background:#353d22}
+nav button{flex:0 0 auto;padding:13px 18px;border:0;background:none;color:#cfd3b6;font-weight:600;border-bottom:3px solid transparent}
+nav button.on{color:#fff;border-bottom-color:var(--am)}
 main{padding:14px;max-width:980px;margin:0 auto}
 .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
@@ -56,7 +56,7 @@ main{padding:14px;max-width:980px;margin:0 auto}
 .kpi small{color:#666;display:block}.kpi strong{font-size:26px}
 .kpi.al strong{color:var(--al)}.kpi.er strong{color:var(--er)}
 .lote{cursor:pointer}
-.lote h3{margin:0 0 2px;font-size:17px}.muted{color:#666;font-size:14px}
+.lote h3{margin:0 0 2px;font-size:17px}.muted{color:#6a6c58;font-size:14px}
 .tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:var(--g3);margin:4px 4px 0 0}
 .tag.al{background:#f1e2c2}.tag.er{background:#efcaca}.tag.ok{background:#d3e4d3}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-bottom:1px solid var(--g3);text-align:left}
@@ -385,7 +385,7 @@ async function gerarPDF(o) {
   const W = 210, H = 297, M = 14; let y = 30;
   const logo = await logoDataUrl(); let logoR = 0.17; if (logo) { const [lw, lh] = await dimsImg(logo); logoR = lh / lw; }
   const nova = () => { doc.addPage(); y = 30; };
-  const cabeca = () => { doc.setFillColor(111, 111, 111); doc.rect(0, 0, W, 20, 'F'); doc.setTextColor(255); doc.setFontSize(13); doc.text('Controle de Lotes', M, 13); if (logo) { try { doc.addImage(logo, 'PNG', W - M - 42, 7, 42, 42 * logoR, undefined, 'FAST'); } catch (e) { } } doc.setTextColor(40); };
+  const cabeca = () => { doc.setFillColor(63, 74, 43); doc.rect(0, 0, W, 20, 'F'); doc.setTextColor(255); doc.setFontSize(13); doc.text('Controle de Lotes', M, 13); if (logo) { try { doc.addImage(logo, 'PNG', W - M - 42, 7, 42, 42 * logoR, undefined, 'FAST'); } catch (e) { } } doc.setTextColor(40); };
   const garante = h => { if (y + h > H - 18) nova(); };
   const txt = (t, tam = 10, neg = false) => { doc.setFontSize(tam); doc.setFont('helvetica', neg ? 'bold' : 'normal'); doc.splitTextToSize(String(t), W - 2 * M).forEach(l => { garante(tam * 0.5); doc.text(l, M, y); y += tam * 0.45 + 1.2; }); };
   const fotos = async id => {

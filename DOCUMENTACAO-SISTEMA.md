@@ -41,11 +41,12 @@ As abas Lotes, Liberacoes, Ocorrencias e Destinos da versão 1 não são mais us
 **Quando o site mudar:** aumentar a versão em `sw.js` (`VERSAO`) para os aparelhos baixarem a nova.
 
 ## Regras de interface combinadas
-Paleta cinza com logo e foto do Essence no login (cartão de vidro); pouquíssimo texto; janelas só fecham pelo X; botões grandes para tablet e celular; fotos pela câmera ou galeria; abas no topo.
+Paleta verde musgo escuro (amarelo do logo como destaque) com logo e foto do Essence no login (cartão de vidro); pouquíssimo texto; janelas só fecham pelo X; botões grandes para tablet e celular; fotos pela câmera ou galeria; abas no topo.
 
 ## Testes (31/10/2026)
 Servidor simulado + navegador automatizado, 14 de 14 verificações: login e abas por perfil, exigência de material e de foto, entrega com foto, fila offline (4 itens) enviada ao voltar a internet, agrupamento de passos, filtro "8 andar" sem pegar "18º andar", PDF gerado com nome correto, edição pelo administrador.
 
 ## Histórico de versões
+- **2.0.1 (31/10/2026):** paleta verde musgo escuro (cabeçalho, botões, login e PDF), destaque amarelo do logo.
 - **2.0.0 (31/10/2026):** sistema refeito só para entrega de material (sem recebimento/notas/saldo); perfis administrador, almoxarife e compras; relatório por local.
 - **1.0.4:** fonte Lavish nos títulos. **1.0.3:** logo. **1.0.2:** novo login. **1.0.1:** URL do servidor. **1.0.0:** primeira versão (recebimento e liberação por lote).
