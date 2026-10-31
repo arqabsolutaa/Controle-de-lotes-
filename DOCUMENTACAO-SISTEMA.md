@@ -1,6 +1,6 @@
 # Controle de Lotes — Documentação do sistema
 
-**Versão 2.0.0 — 31/10/2026**
+**Versão 2.1.0 — 31/10/2026**
 
 Sistema web para registrar a **entrega de material** na obra (argamassa de fachada, impermeabilizante etc.): material, para onde vai ser usado, quem retirou, data e **foto do lote**. Serve para rastrear de qual lote veio o material usado em cada local e gerar relatório em PDF (ex.: impermeabilizante usado no 8º andar). Mesma arquitetura do sistema de FVS do Essence Residence.
 
@@ -47,6 +47,7 @@ Paleta verde musgo escuro (amarelo do logo como destaque) com logo e foto do Ess
 Servidor simulado + navegador automatizado, 14 de 14 verificações: login e abas por perfil, exigência de material e de foto, entrega com foto, fila offline (4 itens) enviada ao voltar a internet, agrupamento de passos, filtro "8 andar" sem pegar "18º andar", PDF gerado com nome correto, edição pelo administrador.
 
 ## Histórico de versões
+- **2.1.0 (31/10/2026):** entrega rápida (botões grandes de material; local e quem retirou escolhidos de listas cadastradas, com busca e "Outro…"; data automática; foto obrigatória); novas tabelas Locais e Funcionarios; "Colar lista" em Cadastros (compras e administrador). Recomenda-se nomear locais como "8º andar - Apto 801" para que o relatório por andar funcione.
 - **2.0.3 (31/10/2026):** fonte dos títulos menor.
 - **2.0.2 (31/10/2026):** login em duas etapas (escolhe o nome, depois abre o teclado de senha, menor); novo ícone do app (Controle · Essence Residence).
 - **2.0.1 (31/10/2026):** paleta verde musgo escuro (cabeçalho, botões, login e PDF), destaque amarelo do logo.

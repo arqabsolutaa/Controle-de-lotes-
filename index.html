@@ -76,6 +76,26 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;b
 .x{width:44px;height:44px;border:0;border-radius:50%;background:var(--g2);font-size:22px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:12px 18px;border-radius:12px;z-index:50;display:none;max-width:90%}
 .warn{color:var(--al);font-size:13px;margin-top:4px}
+#toast.ok{background:#3b6b32;font-size:19px;font-weight:600;padding:16px 24px}
+.rot{font-size:17px;font-weight:600;margin:22px 0 8px}
+.rot:first-child{margin-top:4px}
+.mats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.matb{min-height:64px;padding:8px 6px;overflow-wrap:anywhere;hyphens:auto;line-height:1.15;border-radius:14px;border:2px solid var(--g2);background:#fff;font-size:16px;font-weight:600;color:var(--tx);cursor:pointer}
+.matb.on{background:var(--g1);border-color:var(--g1);color:#fff}
+.campo{width:100%;min-height:64px;padding:0 18px;border-radius:14px;border:2px solid var(--g2);background:#fff;font-size:19px;font-weight:600;text-align:left;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--tx)}
+.campo::after{content:'›';font-size:30px;color:var(--g1);font-weight:400}
+.campo.vazio{color:#80836c;font-weight:400}
+.campo.on{border-color:var(--g1)}
+.fotos2{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.fotos2 .btn{min-height:64px;font-size:18px}
+.salvar{width:100%;min-height:68px;margin-top:22px;font-size:21px;border-radius:16px}
+.dataln{margin-top:16px;font-size:15px;color:#5b5d48;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dataln button{border:0;background:none;color:var(--g1);font-weight:600;font-size:15px;text-decoration:underline;cursor:pointer;min-height:40px}
+.busca{position:sticky;top:64px;z-index:2;background:var(--off);padding:0 0 10px}
+.opcao{display:block;width:100%;text-align:left;min-height:60px;padding:0 16px;border:0;border-bottom:1px solid var(--g3);background:#fff;font-size:19px;cursor:pointer;color:var(--tx)}
+.opcao.on{background:var(--g1);color:#fff}
+.opcao.outro{color:var(--g1);font-weight:600}
+.lista{border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 @media(min-width:700px){.ov{align-items:center}.mod{border-radius:18px}}
 @media(max-width:440px){.lbox{padding:28px 22px 24px}.lbox h2{font-size:27px}}
 </style>
@@ -88,7 +108,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;b
 'use strict';
 /* ===== CONFIG ===== */
 const API_URL = 'https://script.google.com/macros/s/AKfycbxNAKzpN-DJRvrmbyUVIiqCOpLNtdIq_yZ_a_hncZkdupgtZ-udWTVqT_CBiP0gRwpIPQ/exec';
-const VERSAO_APP = '2.0.0';
+const VERSAO_APP = '2.1.0';
 
 /* ===== UTIL ===== */
 const $ = (t, a = {}, ...k) => {
@@ -113,7 +133,7 @@ const normT = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-�
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /* "8 andar" acha "8º andar", mas nao acha "18º andar" */
 const bateLocal = (local, q) => { const n = normT(q); if (!n) return true; return new RegExp('(^|[^a-z0-9])' + escRe(n)).test(normT(local)); };
-function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2800); }
+function toast(t, bom) { const e = document.getElementById('toast'); e.className = bom ? 'ok' : ''; e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2800); }
 
 /* ===== IndexedDB (fila offline + copia local) ===== */
 let _db;
@@ -134,9 +154,10 @@ const filaAll = () => tx('fila', 'readonly', s => s.getAll()).then(r => r || [])
 const filaDel = async seqs => { const d = await db(); return new Promise(res => { const t = d.transaction('fila', 'readwrite'); seqs.forEach(q => t.objectStore('fila').delete(q)); t.oncomplete = res; }); };
 
 /* ===== ESTADO ===== */
-const CHAVES = ['Materiais', 'Entregas', 'Fotos', 'Usuarios'];
+const CHAVES = ['Materiais', 'Locais', 'Funcionarios', 'Entregas', 'Fotos', 'Usuarios'];
 const garantir = d => { d = d || {}; CHAVES.forEach(k => { if (!Array.isArray(d[k])) d[k] = []; }); return d; };
 const S = { token: null, u: null, data: null, tab: 'entregar', pend: 0, erros: [], online: navigator.onLine, fotos: {}, filtro: { mat: '', q: '' } };
+const TAB_CAD = { materiais: 'Materiais', locais: 'Locais', funcionarios: 'Funcionarios' };
 const NOMES = { entregar: 'Entregar', entregas: 'Entregas', relatorio: 'Relatório', cadastros: 'Cadastros', historico: 'Histórico' };
 const TABS = {
   administrador: ['entregar', 'entregas', 'relatorio', 'cadastros', 'historico'],
@@ -157,7 +178,8 @@ function aplicar(data, acao, d) {
   switch (acao) {
     case 'salvarEntrega': up('Entregas', Object.assign({ por, criadoEm: new Date().toISOString() }, d)); break;
     case 'salvarFoto': if (!data.Fotos.some(f => f.id === d.id)) data.Fotos.push({ id: d.id, refTipo: d.refTipo, refId: d.refId, tipo: d.tipo, arquivo: 'local', por }); break;
-    case 'salvarCadastro': up('Materiais', Object.assign({ ativo: 'sim' }, d)); break;
+    case 'salvarCadastro': up(TAB_CAD[d.tabela || 'materiais'], { id: d.id, nome: d.nome, ativo: d.ativo || 'sim' }); break;
+    case 'salvarLista': (d.itens || []).forEach(it => { const l = data[TAB_CAD[d.tabela]]; if (!l.some(x => x.id === it.id || normT(x.nome) === normT(it.nome))) l.push({ id: it.id, nome: it.nome, ativo: 'sim' }); }); break;
     case 'salvarUsuario': up('Usuarios', { id: d.id, nome: d.nome, perfil: d.perfil, ativo: d.ativo || 'sim' }); break;
   }
 }
@@ -219,7 +241,7 @@ function fotoCampo(rotulo, lista) {
   const pinta = () => { th.replaceChildren(...lista.map((u, i) => $('div', { style: 'position:relative' }, $('img', { src: u }), $('button', { class: 'x', type: 'button', style: 'position:absolute;top:-6px;right:-6px;width:30px;height:30px;font-size:16px', onclick: () => { lista.splice(i, 1); pinta(); } }, '×')))); };
   const mk = cap => { const i = $('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async () => { for (const f of i.files) { try { lista.push(await comprimir(f)); } catch (e) { toast('Foto inválida'); } } i.value = ''; pinta(); } }); if (cap) i.setAttribute('capture', 'environment'); return i; };
   const cam = mk(true), gal = mk(false);
-  box.append($('label', {}, rotulo), $('div', { class: 'row' }, $('button', { class: 'btn', type: 'button', onclick: () => cam.click() }, 'Câmera'), $('button', { class: 'btn sec', type: 'button', onclick: () => gal.click() }, 'Galeria')), cam, gal, th);
+  box.append($('div', { class: 'rot' }, rotulo), $('div', { class: 'fotos2' }, $('button', { class: 'btn', type: 'button', onclick: () => cam.click() }, '📷  Tirar foto'), $('button', { class: 'btn sec', type: 'button', onclick: () => gal.click() }, 'Galeria')), cam, gal, th);
   return box;
 }
 async function urlFoto(id) {
@@ -250,12 +272,38 @@ function modal(titulo, corpo) {
   document.body.append(ov); return fechar;
 }
 
+/* ===== SELETOR (lista grande com busca) ===== */
+function escolher(titulo, itens, atual, aoEscolher, permiteOutro) {
+  const corpo = $('div'); let fechar;
+  const busca = $('input', { placeholder: 'Buscar', autocomplete: 'off', style: 'min-height:56px;font-size:19px' });
+  const lista = $('div', { class: 'lista' });
+  const escolhe = v => { aoEscolher(v); fechar(); };
+  const outro = () => {
+    const i = $('input', { placeholder: 'Digite aqui', style: 'min-height:56px;font-size:19px' });
+    corpo.replaceChildren($('div', { class: 'rot' }, 'Outro'), i, $('button', { class: 'btn salvar', type: 'button', onclick: () => { if (i.value.trim()) escolhe(i.value.trim()); } }, 'OK'));
+    i.focus();
+  };
+  const pinta = () => {
+    const q = normT(busca.value);
+    const ls = itens.filter(v => !q || normT(v).includes(q));
+    const nos = ls.map(v => $('button', { class: 'opcao' + (v === atual ? ' on' : ''), type: 'button', onclick: () => escolhe(v) }, v));
+    if (!ls.length) nos.push($('div', { class: 'opcao', style: 'color:#6a6c58' }, itens.length ? 'Nada encontrado' : 'Lista vazia'));
+    if (permiteOutro) nos.push($('button', { class: 'opcao outro', type: 'button', onclick: outro }, 'Outro…'));
+    lista.replaceChildren(...nos);
+  };
+  busca.addEventListener('input', pinta);
+  corpo.append($('div', { class: 'busca' }, busca), lista); pinta();
+  fechar = modal(titulo, corpo);
+}
+
 /* ===== DADOS ===== */
 const mat = id => S.data.Materiais.find(m => m.id === id) || { nome: '?' };
 const unicos = campo => [...new Set(S.data.Entregas.map(e => (e[campo] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 const ordena = l => l.slice().sort((a, b) => (b.data || '').localeCompare(a.data || '') || (b.criadoEm || '').localeCompare(a.criadoEm || ''));
 const nFotos = id => S.data.Fotos.filter(f => f.refTipo === 'entrega' && f.refId === id).length;
 const datalist = (id, itens) => $('datalist', { id }, itens.map(v => $('option', { value: v })));
+const ativosDe = t => S.data[t].filter(x => x.ativo !== 'nao').map(x => x.nome).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+const locaisTodos = () => [...new Set([...ativosDe('Locais'), ...unicos('local')])].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
 const filtrar = o => S.data.Entregas.filter(e => (!o.mat || e.materialId === o.mat) && bateLocal(e.local, o.local) && (!o.de || (e.data || '') >= o.de) && (!o.ate || (e.data || '') <= o.ate));
 
 /* ===== LOGIN ===== */
@@ -318,27 +366,36 @@ function mostrarErros() { modal('Erros de envio', $('div', {}, S.erros.map(e => 
 function entregar(m, ed) {
   const f = { mat: ed ? ed.materialId : '', local: ed ? ed.local : '', retirou: ed ? ed.retiradoPor : '', data: ed ? ed.data : hojeISO() };
   const fotos = [];
-  const ativos = S.data.Materiais.filter(x => x.ativo !== 'nao' || (ed && x.id === ed.materialId));
-  const selM = $('select', { onchange: e => f.mat = e.target.value }, $('option', { value: '' }, 'Material'), ativos.map(x => $('option', { value: x.id }, x.nome)));
-  selM.value = f.mat;
-  const inp = (rot, k, extra = {}) => $('div', {}, $('label', {}, rot), $('input', Object.assign({ value: f[k], oninput: e => f[k] = e.target.value }, extra)));
-  const bt = $('button', { class: 'btn', style: 'width:100%;margin-top:18px', onclick: async () => {
+  const mats = S.data.Materiais.filter(x => x.ativo !== 'nao' || (ed && x.id === ed.materialId)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const grade = $('div', { class: 'mats' });
+  const pintaMat = () => grade.replaceChildren(...mats.map(x => $('button', { class: 'matb' + (f.mat === x.id ? ' on' : ''), type: 'button', onclick: () => { f.mat = x.id; pintaMat(); } }, x.nome)));
+  pintaMat();
+  const campo = (titulo, chave, itens, outro) => {
+    const b = $('button', { class: 'campo', type: 'button', onclick: () => escolher(titulo, itens(), f[chave], v => { f[chave] = v; atualiza(); }, outro) });
+    const atualiza = () => { b.textContent = f[chave] || 'Toque para escolher'; b.className = 'campo' + (f[chave] ? ' on' : ' vazio'); };
+    atualiza(); return b;
+  };
+  const dataBox = $('div', { class: 'dataln' });
+  const pintaData = () => { dataBox.replaceChildren(`Data: ${f.data === hojeISO() ? 'hoje, ' : ''}${fData(f.data)}`, $('button', { type: 'button', onclick: () => { dataBox.replaceChildren($('input', { type: 'date', value: f.data, style: 'max-width:200px', oninput: e => f.data = e.target.value || hojeISO() }), $('button', { type: 'button', onclick: pintaData }, 'ok')); } }, 'alterar')); };
+  pintaData();
+  const bt = $('button', { class: 'btn salvar', type: 'button', onclick: async () => {
     if (!f.mat) return toast('Escolha o material');
-    if (!f.local.trim()) return toast('Informe para onde vai');
-    if (!f.retirou.trim()) return toast('Informe quem retirou');
-    if (!ed && !fotos.length) return toast('Foto do lote é obrigatória');
+    if (!f.local.trim()) return toast('Escolha onde vai ser usado');
+    if (!f.retirou.trim()) return toast('Escolha quem retirou');
+    if (!ed && !fotos.length) return toast('Tire a foto do lote');
     bt.disabled = true;
     const id = ed ? ed.id : uid();
     await enfileirar('salvarEntrega', { id, materialId: f.mat, local: f.local.trim(), retiradoPor: f.retirou.trim(), data: f.data, obs: ed ? ed.obs || '' : '' });
     for (const b of fotos) await enfileirar('salvarFoto', { id: uid(), refTipo: 'entrega', refId: id, tipo: 'lote', base64: b });
-    toast(ed ? 'Entrega atualizada' : 'Entrega salva');
-    if (ed) { ed._fechar(); }
+    toast(ed ? 'Entrega atualizada ✓' : 'Entrega salva ✓', true);
+    if (ed) ed._fechar();
     render(); sincronizar();
   } }, ed ? 'Salvar alterações' : 'Salvar entrega');
-  m.append($('div', { class: 'card' }, $('label', {}, 'Material'), selM,
-    inp('Para onde vai ser usado', 'local', { list: 'locais', placeholder: 'ex.: 8º andar, fachada torre A' }),
-    inp('Quem retirou', 'retirou', { list: 'pessoas' }), inp('Data', 'data', { type: 'date' }),
-    ed ? null : fotoCampo('Foto do lote *', fotos), bt), datalist('locais', unicos('local')), datalist('pessoas', unicos('retiradoPor')));
+  m.append($('div', { class: 'card' },
+    $('div', { class: 'rot' }, 'Material'), grade,
+    $('div', { class: 'rot' }, 'Onde vai ser usado'), campo('Onde vai ser usado', 'local', locaisTodos, true),
+    $('div', { class: 'rot' }, 'Quem retirou'), campo('Quem retirou', 'retirou', () => [...new Set([...ativosDe('Funcionarios'), ...unicos('retiradoPor')])].sort((a, b) => a.localeCompare(b, 'pt-BR')), true),
+    ed ? null : fotoCampo('Foto do lote', fotos), dataBox, bt));
 }
 
 /* --- Entregas (lista) --- */
@@ -384,7 +441,7 @@ function relatorio(m) {
   m.append($('div', { class: 'card' }, $('label', {}, 'Material'), selM,
     $('label', {}, 'Local'), $('input', { list: 'locais', placeholder: 'ex.: 8º andar', oninput: e => { R.local = e.target.value; atualiza(); } }),
     $('div', { class: 'row' }, $('div', {}, $('label', {}, 'De'), $('input', { type: 'date', oninput: e => { R.de = e.target.value; atualiza(); } })), $('div', {}, $('label', {}, 'Até'), $('input', { type: 'date', oninput: e => { R.ate = e.target.value; atualiza(); } }))),
-    $('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px' }, $('input', { type: 'checkbox', checked: true, style: 'width:24px;min-height:24px', onchange: e => R.fotos = e.target.checked }), 'Com fotos'), cont, bt), datalist('locais', unicos('local')));
+    $('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px' }, $('input', { type: 'checkbox', checked: true, style: 'width:24px;min-height:24px', onchange: e => R.fotos = e.target.checked }), 'Com fotos'), cont, bt), datalist('locais', locaisTodos()));
   atualiza();
 }
 
@@ -442,16 +499,32 @@ async function gerarPDF(o) {
 
 /* --- Cadastros --- */
 function cadastros(m) {
-  const linha = (t, f) => $('div', { style: 'padding:10px 0;border-bottom:1px solid var(--g3);cursor:pointer', onclick: f }, t);
-  const bloco = (titulo, itens, novo) => $('div', { class: 'card' }, $('div', { class: 'row', style: 'align-items:center' }, $('b', {}, titulo), $('button', { class: 'btn sm', style: 'flex:0 0 auto', onclick: novo }, '+')), itens);
-  m.append(bloco('Materiais', S.data.Materiais.map(x => linha(x.nome + (x.ativo === 'nao' ? ' (inativo)' : ''), () => formMat(x))), () => formMat(null)));
-  if (S.u.perfil === 'administrador') m.append(bloco('Usuários', S.data.Usuarios.map(x => linha(`${x.nome} · ${x.perfil}${x.ativo === 'nao' ? ' (inativo)' : ''}`, () => formUsu(x))), () => formUsu(null)));
+  const linha = (t, f) => $('div', { style: 'padding:12px 0;border-bottom:1px solid var(--g3);cursor:pointer;font-size:17px', onclick: f }, t);
+  const sec = (titulo, tabela, chave) => {
+    const itens = S.data[chave].slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
+    const nos = itens.map(x => linha(x.nome + (x.ativo === 'nao' ? ' (inativo)' : ''), () => formCad(tabela, x)));
+    return $('div', { class: 'card' }, $('div', { class: 'row', style: 'align-items:center' }, $('b', {}, `${titulo} (${itens.length})`),
+      $('button', { class: 'btn sec sm', style: 'flex:0 0 auto', onclick: () => colarLista(titulo, tabela) }, 'Colar lista'), $('button', { class: 'btn sm', style: 'flex:0 0 auto', onclick: () => formCad(tabela, null) }, '+')), nos);
+  };
+  m.append(sec('Materiais', 'materiais', 'Materiais'), sec('Locais', 'locais', 'Locais'), sec('Funcionários', 'funcionarios', 'Funcionarios'));
+  if (S.u.perfil === 'administrador') m.append($('div', { class: 'card' }, $('div', { class: 'row', style: 'align-items:center' }, $('b', {}, 'Usuários'), $('button', { class: 'btn sm', style: 'flex:0 0 auto', onclick: () => formUsu(null) }, '+')),
+    S.data.Usuarios.map(x => linha(`${x.nome} · ${x.perfil}${x.ativo === 'nao' ? ' (inativo)' : ''}`, () => formUsu(x)))));
 }
-function formMat(x) {
+function formCad(tabela, x) {
   const f = Object.assign({ id: uid(), nome: '', ativo: 'sim' }, x || {}); let fechar;
   const ativo = $('select', { onchange: e => f.ativo = e.target.value }, $('option', { value: 'sim' }, 'Ativo'), $('option', { value: 'nao' }, 'Inativo')); ativo.value = f.ativo;
-  fechar = modal(x ? 'Editar material' : 'Novo material', $('div', {}, $('label', {}, 'Nome'), $('input', { value: f.nome, oninput: e => f.nome = e.target.value }), $('label', {}, 'Situação'), ativo,
-    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); await enfileirar('salvarCadastro', { id: f.id, nome: f.nome.trim(), ativo: f.ativo }); fechar(); sincronizar(); render(); } }, 'Salvar')));
+  fechar = modal(x ? 'Editar' : 'Novo', $('div', {}, $('label', {}, 'Nome'), $('input', { value: f.nome, oninput: e => f.nome = e.target.value }), $('label', {}, 'Situação'), ativo,
+    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => { if (!f.nome.trim()) return toast('Nome'); await enfileirar('salvarCadastro', { tabela, id: f.id, nome: f.nome.trim(), ativo: f.ativo }); fechar(); sincronizar(); render(); } }, 'Salvar')));
+}
+function colarLista(titulo, tabela) {
+  let fechar; const ta = $('textarea', { style: 'min-height:220px', placeholder: 'Um por linha' });
+  fechar = modal('Colar lista · ' + titulo, $('div', {}, $('div', { class: 'muted' }, 'Cole ou digite um nome por linha. Nomes que já existem são ignorados.'), ta,
+    $('button', { class: 'btn', style: 'width:100%;margin-top:14px', onclick: async () => {
+      const existentes = new Set(S.data[TAB_CAD[tabela]].map(x => normT(x.nome))); const vistos = new Set();
+      const itens = ta.value.split('\n').map(l => l.trim()).filter(l => { const k = normT(l); if (!l || existentes.has(k) || vistos.has(k)) return false; vistos.add(k); return true; }).map(nome => ({ id: uid(), nome }));
+      if (!itens.length) return toast('Nada novo para adicionar');
+      await enfileirar('salvarLista', { tabela, itens }); fechar(); toast(itens.length + ' adicionado(s) ✓', true); sincronizar(); render();
+    } }, 'Adicionar')));
 }
 function formUsu(x) {
   const f = Object.assign({ id: 'u-' + uid(), nome: '', perfil: 'almoxarife', ativo: 'sim', pin: '' }, x || {}); let fechar;

@@ -6,7 +6,7 @@
  * publicar "Nova versao" da implantacao (Implantar > Gerenciar implantacoes > Editar > Nova versao).
  */
 
-var VERSAO = '2.0.0';
+var VERSAO = '2.1.0';
 var PASTA_NOME = 'Controle de Lotes - Fotos';
 var TOKEN_DIAS = 30;
 var SENHA_INICIAL = '1234';
@@ -17,11 +17,15 @@ var ENTREGA = ['administrador', 'almoxarife'];
 
 var TABELAS = {
   Materiais: ['id', 'nome', 'categoria', 'unidade', 'ativo'],
+  Locais:    ['id', 'nome', 'ativo'],
+  Funcionarios: ['id', 'nome', 'ativo'],
   Entregas:  ['id', 'materialId', 'local', 'retiradoPor', 'data', 'obs', 'por', 'criadoEm'],
   Fotos:     ['id', 'refTipo', 'refId', 'tipo', 'arquivo', 'por', 'criadoEm'],
   Usuarios:  ['id', 'nome', 'perfil', 'ativo'],
   Historico: ['id', 'quando', 'quem', 'acao', 'detalhe']
 };
+
+var TABELA_CAD = { materiais: 'Materiais', locais: 'Locais', funcionarios: 'Funcionarios' };
 
 var USUARIOS_INICIAIS = [
   { id: 'u-admin',   nome: 'Barbara',    perfil: 'administrador' },
@@ -39,6 +43,7 @@ var ACOES = {
   salvarEntrega:  { perfis: ENTREGA },
   salvarFoto:     { perfis: ENTREGA },
   salvarCadastro: { perfis: ['administrador', 'compras'] },
+  salvarLista:    { perfis: ['administrador', 'compras'] },
   salvarUsuario:  { perfis: ['administrador'] },
   batch:          { perfis: TODOS }   // agrupa passos; cada passo e conferido
 };
@@ -161,7 +166,7 @@ var HANDLERS = {
 
   carregar: function (d, usuario) {
     var out = { ok: true, versao: VERSAO, usuario: usuario };
-    ['Materiais', 'Entregas', 'Fotos'].forEach(function (t) { out[t] = lerTabela(t); });
+    ['Materiais', 'Locais', 'Funcionarios', 'Entregas', 'Fotos'].forEach(function (t) { out[t] = lerTabela(t); });
     out.Usuarios = usuario.perfil === 'administrador' ? lerTabela('Usuarios') : [];
     return out;
   },
@@ -203,10 +208,31 @@ var HANDLERS = {
 
   salvarCadastro: function (d, u) {
     exigir(d, ['id', 'nome']);
-    var obj = { id: d.id, nome: String(d.nome).trim(), categoria: '', unidade: '', ativo: d.ativo || 'sim' };
-    upsert('Materiais', obj, ['nome', 'ativo']);
-    historico(u, 'Material', obj.nome + ' (' + obj.ativo + ')');
+    var t = TABELA_CAD[d.tabela || 'materiais'];
+    if (!t) return { ok: false, erro: 'Cadastro invalido' };
+    var obj = { id: d.id, nome: String(d.nome).trim(), ativo: d.ativo || 'sim' };
+    if (t === 'Materiais') { obj.categoria = ''; obj.unidade = ''; }
+    upsert(t, obj, ['nome', 'ativo']);
+    historico(u, 'Cadastro ' + t, obj.nome + ' (' + obj.ativo + ')');
     return { ok: true, id: d.id };
+  },
+
+  /* Inclui uma lista inteira de uma vez: dados = { tabela, itens: [{id, nome}] } */
+  salvarLista: function (d, u) {
+    var t = TABELA_CAD[d.tabela];
+    if (!t || !d.itens || !d.itens.length) return { ok: false, erro: 'Lista invalida' };
+    var ids = {}, nomes = {};
+    lerTabela(t).forEach(function (x) { ids[x.id] = 1; nomes[x.nome.toLowerCase()] = 1; });
+    var novos = [];
+    d.itens.forEach(function (it) {
+      var nome = String(it.nome || '').trim();
+      if (!nome || !it.id || ids[it.id] || nomes[nome.toLowerCase()]) return;
+      ids[it.id] = 1; nomes[nome.toLowerCase()] = 1;
+      novos.push({ id: it.id, nome: nome, categoria: '', unidade: '', ativo: 'sim' });
+    });
+    inserirVarios(t, novos);
+    historico(u, 'Lista ' + t, novos.length + ' item(ns)');
+    return { ok: true, adicionados: novos.length };
   },
 
   salvarUsuario: function (d, u) {
@@ -266,6 +292,15 @@ function inserir(nome, obj) {
   var sh = planilha().getSheetByName(nome);
   var linha = cab.map(function (c) { return obj[c] === undefined ? '' : obj[c]; });
   sh.getRange(sh.getLastRow() + 1, 1, 1, cab.length).setValues([linha]);
+  delete _cache[nome];
+}
+
+function inserirVarios(nome, objs) {
+  if (!objs.length) return;
+  var cab = TABELAS[nome];
+  var sh = planilha().getSheetByName(nome);
+  var linhas = objs.map(function (o) { return cab.map(function (c) { return o[c] === undefined ? '' : o[c]; }); });
+  sh.getRange(sh.getLastRow() + 1, 1, linhas.length, cab.length).setValues(linhas);
   delete _cache[nome];
 }
 
