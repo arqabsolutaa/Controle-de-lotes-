@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#47512f">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Controle de Lotes</title>
 <style>
 @font-face{font-family:'Lavish';src:url(fontes/lavish.otf) format('opentype');font-display:swap}
@@ -34,12 +34,18 @@ border:1px solid rgba(255,255,255,.28);box-shadow:0 24px 64px rgba(0,0,0,.38)}
 .lbox h2 span{color:#d8dfb8}
 .lbox select{min-height:54px;border-radius:999px;padding:0 22px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.38);color:#fff;font-size:16px}
 .lbox select option{color:#222}
-.dots{font-size:30px;letter-spacing:9px;height:46px;margin:12px 0 6px;color:#fff}
-.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.pad button,.pad i{min-height:58px;font-size:22px;border-radius:999px;font-style:normal}
+.dots{font-size:26px;letter-spacing:9px;height:34px;margin:8px 0 8px;color:#fff}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;max-width:264px;margin:0 auto}
+.pad button,.pad i{min-height:46px;font-size:19px;border-radius:999px;font-style:normal}
 .pad button{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.10);color:#fff;cursor:pointer}
 .pad button:active{background:rgba(255,255,255,.28)}
-.entrar{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:999px;background:#f1efe2;color:#2b331a;font-size:17px;font-weight:600;cursor:pointer}
+.entrar{display:block;width:100%;max-width:264px;min-height:50px;margin:16px auto 0;border:0;border-radius:999px;background:#f1efe2;color:#2b331a;font-size:17px;font-weight:600;cursor:pointer}
+.nomes{display:grid;gap:12px;margin-top:4px}
+.nome{min-height:56px;border-radius:999px;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.10);color:#fff;font-size:18px;cursor:pointer}
+.nome:active{background:rgba(255,255,255,.26)}
+.quem{display:flex;align-items:center;justify-content:center;gap:12px;font-size:19px;margin-bottom:2px}
+.voltar{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.10);color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.sem{color:#e6e9d2;font-size:14px}
 /* topo */
 header{position:sticky;top:0;z-index:5;background:var(--g1);color:#fff}
 .top{display:flex;align-items:center;gap:10px;padding:10px 14px}
@@ -71,6 +77,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;b
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:12px 18px;border-radius:12px;z-index:50;display:none;max-width:90%}
 .warn{color:var(--al);font-size:13px;margin-top:4px}
 @media(min-width:700px){.ov{align-items:center}.mod{border-radius:18px}}
+@media(max-width:440px){.lbox{padding:28px 22px 24px}.lbox h2{font-size:34px}}
 </style>
 </head>
 <body>
@@ -254,28 +261,36 @@ const filtrar = o => S.data.Entregas.filter(e => (!o.mat || e.materialId === o.m
 /* ===== LOGIN ===== */
 async function telaLogin() {
   const app = document.getElementById('app'); app.replaceChildren();
-  let pin = '', usuarios = (await kvGet('usuarios')) || [];
-  const sel = $('select'), dots = $('div', { class: 'dots' }, ' ');
-  const pinta = () => { dots.textContent = pin ? '●'.repeat(pin.length) : ' '; };
-  const carregaNomes = () => { sel.replaceChildren(...usuarios.map(u => $('option', { value: u.id }, u.nome))); };
-  carregaNomes();
-  if (S.online && !API_URL.startsWith('COLE')) api('usuariosLogin').then(r => { if (r.ok) { usuarios = r.usuarios; kvSet('usuarios', usuarios); carregaNomes(); } }).catch(() => {});
-  const entrar = async () => {
-    if (!pin) return;
-    try {
-      const r = await api('login', { usuarioId: sel.value, pin });
-      if (!r.ok) { toast(r.erro); pin = ''; pinta(); return; }
-      S.token = r.token; S.u = r.usuario; await kvSet('sessao', { token: r.token, u: r.usuario });
-      S.data = null; S.tab = TABS[r.usuario.perfil][0]; await iniciar();
-    } catch (e) { toast('Sem conexão'); }
-  };
-  const tecla = n => $('button', { type: 'button', onclick: () => { if (pin.length < 8) { pin += n; pinta(); } } }, n);
-  app.append($('div', { id: 'login' }, $('div', { class: 'lbox' },
-    $('img', { src: 'logo.png', onerror: e => e.target.remove(), alt: '' }),
-    $('h2', {}, 'Controle de ', $('span', {}, 'Lotes')), sel, dots,
-    $('div', { class: 'pad' }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(tecla), $('i'), tecla(0), $('button', { type: 'button', 'aria-label': 'apagar', onclick: () => { pin = pin.slice(0, -1); pinta(); } }, '⌫')),
-    $('button', { class: 'entrar', type: 'button', onclick: entrar }, 'Entrar')
-  )));
+  let pin = '', usuario = null, usuarios = (await kvGet('usuarios')) || [];
+  const caixa = $('div', { class: 'lbox' }); app.append($('div', { id: 'login' }, caixa));
+  const cab = () => [$('img', { src: 'logo.png', onerror: e => e.target.remove(), alt: '' }), $('h2', {}, 'Controle de ', $('span', {}, 'Lotes'))];
+  function passo1() {
+    usuario = null; pin = '';
+    caixa.replaceChildren(...cab(), usuarios.length
+      ? $('div', { class: 'nomes' }, usuarios.map(u => $('button', { class: 'nome', type: 'button', onclick: () => { usuario = u; passo2(); } }, u.nome)))
+      : $('div', { class: 'sem' }, 'Sem conexão'));
+  }
+  function passo2() {
+    pin = '';
+    const dots = $('div', { class: 'dots' }, ' ');
+    const pinta = () => { dots.textContent = pin ? '●'.repeat(pin.length) : ' '; };
+    const entrar = async () => {
+      if (!pin) return;
+      try {
+        const r = await api('login', { usuarioId: usuario.id, pin });
+        if (!r.ok) { toast(r.erro); pin = ''; pinta(); return; }
+        S.token = r.token; S.u = r.usuario; await kvSet('sessao', { token: r.token, u: r.usuario });
+        S.data = null; S.tab = TABS[r.usuario.perfil][0]; await iniciar();
+      } catch (e) { toast('Sem conexão'); }
+    };
+    const tecla = n => $('button', { type: 'button', onclick: () => { if (pin.length < 8) { pin += n; pinta(); } } }, n);
+    caixa.replaceChildren(...cab(),
+      $('div', { class: 'quem' }, $('button', { class: 'voltar', type: 'button', 'aria-label': 'voltar', onclick: passo1 }, '‹'), $('span', {}, usuario.nome)), dots,
+      $('div', { class: 'pad' }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(tecla), $('i'), tecla(0), $('button', { type: 'button', 'aria-label': 'apagar', onclick: () => { pin = pin.slice(0, -1); pinta(); } }, '⌫')),
+      $('button', { class: 'entrar', type: 'button', onclick: entrar }, 'Entrar'));
+  }
+  passo1();
+  if (S.online && !API_URL.startsWith('COLE')) api('usuariosLogin').then(r => { if (r.ok) { usuarios = r.usuarios; kvSet('usuarios', usuarios); if (!usuario) passo1(); } }).catch(() => {});
 }
 async function sairLogin() { S.token = null; S.u = null; await kvSet('sessao', null); telaLogin(); }
 
