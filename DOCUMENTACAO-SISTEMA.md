@@ -47,6 +47,7 @@ Paleta verde musgo escuro (amarelo do logo como destaque) com logo e foto do Ess
 Servidor simulado + navegador automatizado, 14 de 14 verificações: login e abas por perfil, exigência de material e de foto, entrega com foto, fila offline (4 itens) enviada ao voltar a internet, agrupamento de passos, filtro "8 andar" sem pegar "18º andar", PDF gerado com nome correto, edição pelo administrador.
 
 ## Histórico de versões
+- **2.0.3 (31/10/2026):** fonte dos títulos menor.
 - **2.0.2 (31/10/2026):** login em duas etapas (escolhe o nome, depois abre o teclado de senha, menor); novo ícone do app (Controle · Essence Residence).
 - **2.0.1 (31/10/2026):** paleta verde musgo escuro (cabeçalho, botões, login e PDF), destaque amarelo do logo.
 - **2.0.0 (31/10/2026):** sistema refeito só para entrega de material (sem recebimento/notas/saldo); perfis administrador, almoxarife e compras; relatório por local.
